@@ -42,7 +42,11 @@ import java.awt.event.ActionEvent;
 public class IDE extends JFrame {
 
 	private JPanel contentPane;
+	private ControladorDDL controlDDL;
+	
 	public IDE() {
+		controlDDL = new ControladorDDL();
+		
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 716, 439);
 		contentPane = new JPanel();
@@ -78,6 +82,16 @@ public class IDE extends JFrame {
 		scrollPane_2.setColumnHeaderView(menuBar);
 		
 		JButton btnEjecutar = new JButton("Ejecutar");
+		btnEjecutar.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				if(tabbedPane.getSelectedIndex()==0){
+					controlDDL.compilar(txtDDL.getText());
+				}else{
+					controlDDL.compilar(txtDDL.getText());
+				}
+				
+			}
+		});
 		btnEjecutar.setIcon(new ImageIcon(IDE.class.getResource("/com/sun/javafx/webkit/prism/resources/mediaPlayDisabled.png")));
 		menuBar.add(btnEjecutar);
 		

@@ -55,6 +55,8 @@ public class IDE extends JFrame {
 		JTextArea textArea = new JTextArea();
 		scrollPane.setViewportView(textArea);
 		
+		
+		
 		JMenuBar menuBar = new JMenuBar();
 		scrollPane.setColumnHeaderView(menuBar);
 		

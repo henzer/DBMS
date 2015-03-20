@@ -13,7 +13,7 @@ CHAR: '\'' (LETTER|DIGIT|' '| '!' | '"' | '#' | '$' | '%' | '&' | '(' | ')' | '*
 '\\t'| '\\n' | '\"' | '\'' | '\n')* '\'';
 
 statement
-	: createDatabase
+	: createDatabase 
 	| alterDatabase
 	| dropDatabase
 	| showDatabases
@@ -26,7 +26,7 @@ statement
 	;
 	
 createDatabase
-	: 'CREATE' 'DATABASE' ID
+	: 'CREATE' 'DATABASE' ID 
 	;
 
 alterDatabase
@@ -51,8 +51,8 @@ createTable
 	;
 
 alterTable
-	: 'ALTER' 'TABLE' ID 'RENAME' 'TO' ID
-	| 'ALTER' 'TABLE' ID accion (','accion)*
+	: 'ALTER' 'TABLE' ID 'RENAME' 'TO' ID		#alterTableRename
+	| 'ALTER' 'TABLE' ID accion (','accion)*	#alterTableAccion
 	;
 	
 dropTable
@@ -68,47 +68,50 @@ showColumnsFrom
 	;
 
 accion
-	: 'ADD' 'COLUMN' ID ID (constraintDecl(','constraintDecl)*)?
-	| 'ADD' constraintDecl
-	| 'DROP' 'COLUMN' ID
-	| 'DROP' 'CONSTRAINT' ID
+	: 'ADD' 'COLUMN' ID ID (constraintDecl(','constraintDecl)*)?	#accion1
+	| 'ADD' constraintDecl											#accion2
+	| 'DROP' 'COLUMN' ID											#accion3
+	| 'DROP' 'CONSTRAINT' ID										#accion4
 	;
 	
 	
 constraintDecl
-	: 'CONSTRAINT' ID 'PRIMARY' 'KEY' '(' (ID  (',' ID )*)? ')'
-	| 'CONSTRAINT' ID 'FOREIGN' 'KEY' '(' (ID  (',' ID )*)? ')' 'REFERENCES' ID '(' (ID  (',' ID )*)? ')' 
-	| 'CONSTRAINT' ID 'CHECK' '(' expression ')' 
+	: 'CONSTRAINT' ID 'PRIMARY' 'KEY' '(' (ID  (',' ID )*)? ')'												#constraintDecl1
+	| 'CONSTRAINT' ID 'FOREIGN' 'KEY' '(' (ID  (',' ID )*)? ')' 'REFERENCES' ID '(' (ID  (',' ID )*)? ')' 	#constraintDecl2
+	| 'CONSTRAINT' ID 'CHECK' '(' expression ')' 															#constraingDecl3
 	;
 	
 
 	
 tipo
-	: 'INT'
-	| 'FLOAT'
-	| 'CHAR' '(' NUM ')'
-	| 'DATE' 
+	: 'INT'					#tipoInt
+	| 'FLOAT'				#tipoFloat
+	| 'CHAR' '(' NUM ')'	#tipoChar
+	| 'DATE' 				#tipoDate
 	;
 
 literal
-	:	int_literal										//check
-	|	char_literal									//check
-	|	bool_literal									//check
+	:	int_literal										#literalInt
+	|	char_literal									#literalChar
+	|	date_literal									#literalDate
+	|	float_literal									#literalFloat
 	;
 	
 int_literal
-	:	NUM						//check
+	:	NUM						
 	;
 
 char_literal
-	:	CHAR					//check
+	:	CHAR					
 	;
 	
-bool_literal
-	:	'true'					//check				
-	|	'false'					//check				
+float_literal
+	:	NUM '.' NUM
 	;
 	
+date_literal
+	:	DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT
+	;
 
 rel_op
 	:	'<'												#relL
@@ -118,44 +121,44 @@ rel_op
 	;
 	
 eq_op
-	:	'=='											#eqE
-	|	'!='											#eqNE	
+	:	'='											#eqE
+	|	'<>'											#eqNE	
 	;
 	
 cond_op1
-	:	'&&'
+	:	'AND'
 	;
 	
 cond_op2
-	:	'||'
+	:	'OR'
 	;	
 
-expression							//check
+expression							
 	: expression cond_op2 expr1		#expression1
 	| expr1							#expression2
 	;
 	
-expr1								//check
+expr1								
 	: expr1 cond_op1 expr2		#expr11
 	|expr2						#expr12
 	;
 	
-expr2								//check
+expr2								
 	: expr2 eq_op expr3			#expr21
 	| expr3						#expr22
 	;
 
-expr3								//check
+expr3								
 	: expr3 rel_op unifactor			#expr31
-	| unifactor						#expr32
+	| unifactor							#expr32
 	;
 
 unifactor
-	: 'NOT' factor
-	| factor
+	: 'NOT' factor						#uniFactorNot
+	| factor							#uniFactorFactor
 	;
 	
-factor 							//check
+factor 							
 	: literal					#factorLiteral
 	| '(' expression ')'		#factorExpression
 	;

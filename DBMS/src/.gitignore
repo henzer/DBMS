@@ -4,3 +4,5 @@
 /DDLGrammarLexer.tokens
 /DDLGrammarListener.java
 /DDLGrammarParser.java
+/DDLGrammarVisitor.java
+/DDLGrammarBaseVisitor.java

@@ -85,7 +85,7 @@ public class IDE extends JFrame {
 		btnEjecutar.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				if(tabbedPane.getSelectedIndex()==0){
-					controlDDL.compilar(txtDDL.getText());
+					controlDDL.compilar(toUpperCase(txtDDL.getText()));
 				}else{
 					controlDDL.compilar(txtDDL.getText());
 				}
@@ -158,5 +158,23 @@ public class IDE extends JFrame {
 		}
 		return texto;
 		}
-	
+		public static String toUpperCase(String input){
+			String res="";
+			boolean isString=false;
+			for(int i=0;i<input.length();i++){
+				char actual= input.charAt(i);
+				if(actual=='\''){
+					isString=!isString;
+					res+=actual;
+				}
+				else if(isString){
+					res+=actual;
+				}
+				else{
+					res+=(actual+"").toUpperCase();
+				}
+				
+			}
+			return res;
+		}
 }

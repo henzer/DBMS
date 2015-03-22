@@ -122,7 +122,7 @@ rel_op
 	
 eq_op
 	:	'='											#eqE
-	|	'<>'											#eqNE	
+	|	'<>'										#eqNE	
 	;
 	
 cond_op1

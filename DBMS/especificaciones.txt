@@ -1,0 +1,46 @@
+Create database #ya
+	-agregar la base de datos a archivos databases.json
+	-verificar que otra base de datos no exista con el mismo nombre
+	-crear el directorio
+
+Alter database 
+	-verificar que el nombre no exista
+	-cambiar el nombre en el archivo databases.json
+	-cambiar el nombre del directorio
+	-si esta en uso la base de datos actual cambia de nombre
+Drop database #ya
+	-eliminar el directorio
+	-eliminar la base de datos de archivo databases.json
+Create table
+	-verificar que el nombre de la tabla no exista
+	-agregar a master.json (del directorio respectivo) la descripcion de la tabla
+	-crear el archivos .json con nombre de la tabla
+	-revisar nombres de constraints repetidas
+Alter table
+	-cambio de nombre
+		*cambio de nombre en el archivo master.json
+		*modificacion de nombres en constraints
+		*cambio de nombre del archivo .json con los datos de la tabla
+	-Add column
+		*agregar columna y constraint a la descripcion de la tabla en master.json
+		*agregar a todos lo datos un campo mas con valores vacios
+		*revisar nombres de constraint repetidos
+	-drop column
+		*eliminar constraints en el archivos master.json
+		*eliminar campo de todos los datos
+	-drop constraint
+		*elimina la constraint de la descripcion en master.json
+	-drop table
+		*elimina la descripcion en master.json si no existe referencia hacia el
+		*elimina su archivo de datos
+	
+esquema de archivos
+databases.json
+{
+	"databases": [{"name":nombrebasededatos,"length":longitudbasededatos},{...}...]
+}
+master.json
+{
+	"tables":[{"name":nombretabla,"columns":[{"name":nombrecolumna,"type":tipocolumna}],"constraints":[{"name":nombreconstraint,"primaryKey":{[nombrecolumna,...]},"foreignKey":{"columns":[nombrecolumna,...],"table":nombretabla,"references":[nombrecolumna,...]},"check":expr}]}]
+	
+}

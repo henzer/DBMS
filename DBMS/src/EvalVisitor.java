@@ -6,15 +6,18 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import org.antlr.v4.runtime.misc.NotNull;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 
-public class EvalVisitor extends DDLGrammarBaseVisitor{
+public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	String baseDir="databases/";
 	String databaseFileName="databases.json";
+	private TablaTipos tablaTipos;
+
 	public EvalVisitor(){
 		File filep = new File(baseDir+databaseFileName);
 		 
@@ -25,7 +28,350 @@ public class EvalVisitor extends DDLGrammarBaseVisitor{
 			registro.put("databases", new JSONArray());
 			createFile(baseDir+databaseFileName,registro+"");
 		}
+		tablaTipos = new TablaTipos();
+		
+		//Se agregan los tipos de datos primitivos a la tabla de tipos.
+		tablaTipos.agregar("INT", 11);
+		tablaTipos.agregar("FLOAT", 0);
+		tablaTipos.agregar("DATE", 10);
+		tablaTipos.agregar("CHAR", 0);
+		tablaTipos.agregar("BOOLEAN", 1);
 	}
+	
+	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { return visitChildren(ctx); }
+	
+	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) { return visitChildren(ctx); }
+	
+	@Override public Tipo visitConstraingDecl3(@NotNull DDLGrammarParser.ConstraingDecl3Context ctx) { return visitChildren(ctx); }
+	
+	@Override public Tipo visitTipoFloat(@NotNull DDLGrammarParser.TipoFloatContext ctx) { return visitChildren(ctx); }
+	
+	@Override public Tipo visitLiteralFloat(@NotNull DDLGrammarParser.LiteralFloatContext ctx) { return visitChildren(ctx); }
+	
+	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitInt_literal(@NotNull DDLGrammarParser.Int_literalContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitEqE(@NotNull DDLGrammarParser.EqEContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitCond_op1(@NotNull DDLGrammarParser.Cond_op1Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitUniFactorFactor(@NotNull DDLGrammarParser.UniFactorFactorContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitUniFactorNot(@NotNull DDLGrammarParser.UniFactorNotContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitChar_literal(@NotNull DDLGrammarParser.Char_literalContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitRekB(@NotNull DDLGrammarParser.RekBContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitCond_op2(@NotNull DDLGrammarParser.Cond_op2Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitUseDatabase(@NotNull DDLGrammarParser.UseDatabaseContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitRelLE(@NotNull DDLGrammarParser.RelLEContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitFactorLiteral(@NotNull DDLGrammarParser.FactorLiteralContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitCreateDatabase(@NotNull DDLGrammarParser.CreateDatabaseContext ctx) { 
+		try {
+			createDatabase(ctx.ID().getText());
+			return new Tipo("void", "Base de datos creada exitosamente.");
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new Tipo("error", e.getMessage()); 
+		}
+	}
+
+	@Override public Tipo visitLiteralChar(@NotNull DDLGrammarParser.LiteralCharContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitLiteralInt(@NotNull DDLGrammarParser.LiteralIntContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr32(@NotNull DDLGrammarParser.Expr32Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitTipoInt(@NotNull DDLGrammarParser.TipoIntContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitEqNE(@NotNull DDLGrammarParser.EqNEContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitTipoDate(@NotNull DDLGrammarParser.TipoDateContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitFactorExpression(@NotNull DDLGrammarParser.FactorExpressionContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitFloat_literal(@NotNull DDLGrammarParser.Float_literalContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr22(@NotNull DDLGrammarParser.Expr22Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitDate_literal(@NotNull DDLGrammarParser.Date_literalContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr21(@NotNull DDLGrammarParser.Expr21Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitConstraintDecl1(@NotNull DDLGrammarParser.ConstraintDecl1Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitConstraintDecl2(@NotNull DDLGrammarParser.ConstraintDecl2Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitShowDatabases(@NotNull DDLGrammarParser.ShowDatabasesContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitRelL(@NotNull DDLGrammarParser.RelLContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitRelBE(@NotNull DDLGrammarParser.RelBEContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpression2(@NotNull DDLGrammarParser.Expression2Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitLiteralDate(@NotNull DDLGrammarParser.LiteralDateContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpression1(@NotNull DDLGrammarParser.Expression1Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAccion2(@NotNull DDLGrammarParser.Accion2Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitTipoChar(@NotNull DDLGrammarParser.TipoCharContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAccion3(@NotNull DDLGrammarParser.Accion3Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr11(@NotNull DDLGrammarParser.Expr11Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitAccion4(@NotNull DDLGrammarParser.Accion4Context ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public Tipo visitExpr12(@NotNull DDLGrammarParser.Expr12Context ctx) { return visitChildren(ctx); }
+	
+	
+	
+	
+
 	//Metodos para archivos********************************************************************************************************
 	
 	//metodos para creacion de base de datos--------------------------------------------------------------------------
@@ -41,13 +387,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor{
 			//escribir el archivo databases.json con el nombre agregado
 			createFile(baseDir+databaseFileName,content+"");
 			//crear el directorio
-			createDirectory(baseDir+"/"+name);
+			createDirectory(baseDir+name);
 			//crear el archivo master.json
 			JSONObject master = new JSONObject();
 			master.put("tables", new JSONArray());
-			createFile(baseDir+"/"+name+"/master.json",master+"");
-		}
-		else{
+			createFile(baseDir+name+"/master.json",master+"");
+		}else{
 			throw new Exception("Database with name "+name+" already exists");
 		}
 	}
@@ -64,7 +409,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor{
 	}
 	//creacion de directorio
 	public void createDirectory(String dir){
-		boolean success = (new File(baseDir+dir)).mkdirs();
+		boolean success = (new File(dir)).mkdirs();
 		if (!success) {
 		    // Directory creation failed
 		}
@@ -73,19 +418,17 @@ public class EvalVisitor extends DDLGrammarBaseVisitor{
 	public void createFile(String dir,String content){
 		FileWriter file=null;
 		try {
-			 
+			System.out.println(dir);
 			file = new FileWriter(dir,false);
 			file.write(content);
-	 
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		finally{
 			if(file!=null){
-				
 				try {
-					file.close();
 					file.flush();
+					file.close();
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();

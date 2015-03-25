@@ -19,8 +19,15 @@ public class ControladorDDL {
 		lexer = new DDLGrammarLexer(input);
 		tokens = new CommonTokenStream(lexer);
 		parser = new DDLGrammarParser(tokens);
+		
+		//Revision Lexica y Sintactica
 		parser.statement().inspect(parser);
-		return "mensaje";
+		parser.reset();
+		
+		//Revision Semantica
+		EvalVisitor visitador = new EvalVisitor();
+		Tipo t = visitador.visit(parser.statement());
+		return t.getMensaje();
 	}
 
 }

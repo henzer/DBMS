@@ -85,9 +85,11 @@ public class IDE extends JFrame {
 		btnEjecutar.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				if(tabbedPane.getSelectedIndex()==0){
-					controlDDL.compilar(toUpperCase(txtDDL.getText()));
+					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
+					txtConsola.setText(mensaje);
 				}else{
-					controlDDL.compilar(txtDDL.getText());
+					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
+					txtConsola.setText(mensaje);
 				}
 				
 			}

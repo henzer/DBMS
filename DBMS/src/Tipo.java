@@ -1,10 +1,12 @@
+import java.util.ArrayList;
+
 
 public class Tipo {
 	private String tipo;
 	private int length;
 	private String mensaje;
 	
-	
+	private ArrayList<String> resultado;
 	
 	public Tipo(String tipo) {
 		super();
@@ -16,7 +18,11 @@ public class Tipo {
 		this.tipo = tipo;
 		this.mensaje = mensaje;
 	}
-	
+	public Tipo(String tipo,ArrayList<String>resultado) {
+		super();
+		this.tipo = tipo;
+		this.resultado=resultado;
+	}
 	public String getTipo() {
 		return tipo;
 	}
@@ -50,5 +56,13 @@ public class Tipo {
 	public boolean isError(){
 		return (tipo.equals("error"));
 	}
-	
+	public void setResultado(ArrayList<String> resultado){
+		this.resultado=resultado;
+	}
+	public void addResultado(ArrayList<String> resultado){
+		this.resultado.addAll(resultado);
+	}
+	public ArrayList<String> getResultado(){
+		return resultado;
+	}
 }

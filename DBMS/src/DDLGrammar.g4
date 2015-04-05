@@ -3,14 +3,14 @@ grammar DDLGrammar;
 fragment LETTER: ( 'a'..'z' | 'A'..'Z') ;
 fragment DIGIT: '0'..'9' ;
 
-NUM: DIGIT(DIGIT)* ;
+UNUM: DIGIT;
+NUM: UNUM(UNUM)* ;
+DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
 ID : LETTER (LETTER | DIGIT)* ;
 COMMENTS: '//' ~('\r' | '\n' )*  -> channel(HIDDEN);
 WS: [ \t\r\n\f]+  -> channel(HIDDEN);
 
-CHAR: '\'' (LETTER|DIGIT|' '| '!' | '"' | '#' | '$' | '%' | '&' | '(' | ')' | '*' | '+' 
-| ',' | '-' | '.' | '/' | ':' | ';' | '<' | '=' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '_' | '`'| '{' | '|' | '}' | '~' 
-'\\t'| '\\n' | '\"' | '\'' | '\n')* '\'';
+CHAR: '\''~('\r'|'\n'|'\'')* '\'';
 
 
 statement
@@ -47,7 +47,7 @@ useDatabase
 	;
 
 createTable
-	: 'CREATE' 'TABLE' ID '(' (ID tipo (',' ID tipo)*)?  (constraintDecl(','constraintDecl)*)? ')'
+	: 'CREATE' 'TABLE' ID '(' (ID tipo (',' ID tipo)*)? (','constraintDecl)* ')'
 	|
 	;
 
@@ -69,7 +69,7 @@ showColumnsFrom
 	;
 
 accion
-	: 'ADD' 'COLUMN' ID ID (constraintDecl(','constraintDecl)*)?	#accion1
+	: 'ADD' 'COLUMN' ID tipo (constraintDecl(','constraintDecl)*)?	#accion1
 	| 'ADD' constraintDecl											#accion2
 	| 'DROP' 'COLUMN' ID											#accion3
 	| 'DROP' 'CONSTRAINT' ID										#accion4
@@ -79,7 +79,7 @@ accion
 constraintDecl
 	: 'CONSTRAINT' ID 'PRIMARY' 'KEY' '(' (ID  (',' ID )*)? ')'												#constraintDecl1
 	| 'CONSTRAINT' ID 'FOREIGN' 'KEY' '(' (ID  (',' ID )*)? ')' 'REFERENCES' ID '(' (ID  (',' ID )*)? ')' 	#constraintDecl2
-	| 'CONSTRAINT' ID 'CHECK' '(' expression ')' 															#constraingDecl3
+	| 'CONSTRAINT' ID 'CHECK' '(' expression ')' 															#constraintDecl3
 	;
 	
 
@@ -111,7 +111,7 @@ float_literal
 	;
 	
 date_literal
-	:	DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT
+	:	DATE
 	;
 
 rel_op
@@ -162,4 +162,5 @@ unifactor
 factor 							
 	: literal					#factorLiteral
 	| '(' expression ')'		#factorExpression
+	| ID   						#factorID
 	;

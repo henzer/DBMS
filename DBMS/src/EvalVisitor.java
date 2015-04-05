@@ -263,6 +263,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { 
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
 		owner=ctx.ID(0).getText();
 		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
 		currentConstraints=(JSONArray)master.get("constraints");
@@ -553,7 +556,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitTipoChar(@NotNull DDLGrammarParser.TipoCharContext ctx) { 
 		Tipo res = new Tipo("CHAR");
-		res.setLength(Integer.parseInt(ctx.NUM().getText()));
+		if(ctx.NUM()!=null){
+			res.setLength(Integer.parseInt(ctx.NUM().getText()));
+		}
+		else{
+			res.setLength(Integer.parseInt(ctx.UNUM().getText()));
+		}
 		return res;
 	}
 	/**

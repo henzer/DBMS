@@ -87,7 +87,7 @@ constraintDecl
 tipo
 	: 'INT'					#tipoInt
 	| 'FLOAT'				#tipoFloat
-	| 'CHAR' '(' NUM ')'	#tipoChar
+	| 'CHAR' '(' (NUM|UNUM) ')'	#tipoChar
 	| 'DATE' 				#tipoDate
 	;
 
@@ -99,7 +99,7 @@ literal
 	;
 	
 int_literal
-	:	NUM						
+	:	(NUM|UNUM)				
 	;
 
 char_literal

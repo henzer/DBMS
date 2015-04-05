@@ -69,7 +69,7 @@ showColumnsFrom
 	;
 
 accion
-	: 'ADD' 'COLUMN' ID tipo (constraintDecl(','constraintDecl)*)?	#accion1
+	: 'ADD' 'COLUMN' ID tipo (','constraintDecl)*					#accion1
 	| 'ADD' constraintDecl											#accion2
 	| 'DROP' 'COLUMN' ID											#accion3
 	| 'DROP' 'CONSTRAINT' ID										#accion4

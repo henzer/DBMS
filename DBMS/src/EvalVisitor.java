@@ -45,7 +45,42 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tablaTipos.agregar("BOOLEAN", 1);
 	}
 	
-	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		//verificar la existencia de la tabla
+		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables=(JSONArray)master.get("tables");
+		int index=-1;
+		int length=-1;
+		for(int i=0;i<tables.size();i++){
+			JSONObject current=(JSONObject)tables.get(i);
+			if(ctx.ID(0).getText().equals((String)current.get("name"))){
+				index=i;
+				length=(int)(long)current.get("length");
+				break;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Table "+ctx.ID(0).getText()+" does not exist in "+currentDatabase);
+		}
+		//verificar la disponibilidad del nombre
+		if(!checkTableName(ctx.ID(1).getText(),master)){
+			return new Tipo("error","Name "+ctx.ID(1).getText()+" is not available");
+		}
+		//escribir los archivos y realizar los cambios de nombre
+		
+		JSONObject newTable=new JSONObject();
+		newTable.put("name", ctx.ID(1));
+		newTable.put("length",length );
+		tables.remove(index);
+		tables.add(newTable);
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		changeDirectoryName(currentDatabase+"/"+ctx.ID(0).getText()+".json",ctx.ID(1).getText());
+		return new Tipo("void","Table name changed succesfully");
+	}
 	
 	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) { 
 		try {
@@ -295,6 +330,23 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				return current;
 			}
 		}
+		//agregar uno al contador de tablas en el archivo databases
+		JSONObject content = readJSON(baseDir+databaseFileName);
+		JSONArray databases= (JSONArray)content.get("databases");
+		for(int i=0;i<databases.size();i++){
+			JSONObject current = (JSONObject)databases.get(i);
+			if(currentDatabase.equals((String)current.get("name"))){
+				int conttables=(int)(long)(current.get("length"))+1;
+				databases.remove(i);
+				JSONObject newdata=new JSONObject();
+				newdata.put("name", currentDatabase);
+				newdata.put("length", conttables);
+				databases.add(newdata);
+				createFile(baseDir+databaseFileName,content+"");
+				break;
+			}
+		}
+		//creacion y alteracion de archivos
 		JSONArray tables = (JSONArray) master.get("tables");
 		tables.add(newTable);
 		createFile(baseDir+currentDatabase+"/master.json",master+"");
@@ -822,6 +874,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if(nombreC.equals((String)currentC.get("nombreC"))){
 				throw new Exception("Constraint with name "+nombreC+" already exists");
 			}
+			if(owner.equals((String)currentC.get("owner"))&&(currentC.get("primaryKey")!=null)){
+				throw new Exception("Primary key for table "+owner+" already exists");
+			}
 		}
 		JSONArray arrayID = new JSONArray();
 		for(int j=0;j<nombresID.size();j++){
@@ -847,6 +902,19 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	//agrega una foreign key antes de llamar a este metodo es necesario verificar la existencia de la tabla owner(si no es una tabla nueva)
 	public JSONArray addForeignKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> fromC,String references,ArrayList<String> toC)throws Exception{
+		//revisar que exista la tabla a la que se le hace referencia
+		JSONArray tables=(JSONArray)readJSON(baseDir+currentDatabase+"/master.json").get("tables");
+		boolean foundT=false;
+		for(int i=0;i<tables.size();i++){
+			JSONObject current=(JSONObject)tables.get(i);
+			if(references.equals((String)current.get("name"))){
+				foundT=true;
+				break;
+			}
+		}
+		if(!foundT){
+			throw new Exception("Database "+references+" not found");
+		}
 		//ver que no exista nombre de constraint repetido
 		if(fromC.size()!=toC.size()){
 			throw new Exception("Size of fields do not match ");
@@ -871,35 +939,28 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					}
 				}
 			}
-		}
-		//revisar que exista la base de datos a la que se le hace referencia, y que cada campo exista en esa base de datos
-		JSONArray tables=(JSONArray)readJSON(baseDir+currentDatabase+"/master.json").get("tables");
-		boolean foundT=false;
-		for(int i=0;i<tables.size();i++){
-			JSONObject current=(JSONObject)tables.get(i);
-			if(references.equals((String)current.get("name"))){
-				foundT=true;
-				JSONArray referencedColumns=(JSONArray)current.get("columns");
+			//revisar que exista la primary key que contiene a todas las columnas de la foreign key
+			if(references.equals((String)currentC.get("owner"))&&currentC.get("primaryKey")!=null){
+				JSONArray keys=(JSONArray)currentC.get("primaryKey");
 				for(int k=0;k<toC.size();k++){
 					boolean foundC=false;
-					for(int j=0;j<referencedColumns.size();j++){
-						JSONObject column=(JSONObject)referencedColumns.get(j);
-						if(toC.get(k).equals((String)column.get("name"))){
+					
+					for(int x=0;x<keys.size();x++){
+						if(toC.get(k).equals((String)keys.get(x))){
 							foundC=true;
 						}
 					}
 					if(!foundC){
-						throw new Exception("Column "+toC.get(k)+" not found in "+(String)current.get("name"));
+						String combination=toC.get(0);
+						for(int y=1;y<toC.size();y++){
+							combination+=","+toC.get(y);
+						}
+						throw new Exception("Table "+references+" has no primary key "+combination);
 					}
 				}
-				
-				break;
-				
 			}
 		}
-		if(!foundT){
-			throw new Exception("Database "+references+" not found");
-		}
+		
 		//creacion de la constraint
 		JSONObject nuevo = new JSONObject();
 		nuevo.put("owner", owner);

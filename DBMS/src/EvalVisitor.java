@@ -111,7 +111,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return new Tipo("FLOAT",currentExpression); 
 	}
 	
-	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		String res="";
+		JSONArray tables=(JSONArray)master.get("tables");
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentT=(JSONObject)tables.get(i);
+			res+=(String)currentT.get("name")+"\n";
+		}
+		return new Tipo("void","Tables:\n"+res);
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -416,7 +429,41 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		//verificar la existencia de la tabla
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables=(JSONArray)master.get("tables");
+		JSONArray constraints=(JSONArray)master.get("constraints");
+		JSONArray columns=null;
+		String columnas="";
+		String constr="";
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentT=(JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentT.get("name"))){
+				columns=(JSONArray)currentT.get("columns");
+			}
+		}
+		if(columns==null){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//escribir columnas
+		for(int i=0;i<columns.size();i++){
+			JSONObject currentC=(JSONObject)columns.get(i);
+			columnas+="name: "+(String)currentC.get("name")+" type: "+(String)currentC.get("type")+"\n";
+		}
+		//escribir constraints
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("owner"))){
+				constr+=currentC+"\n";
+			}
+		}
+		return new Tipo("void","Columns\n"+columnas+"Constraints\n"+constr);
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -495,7 +542,48 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { 
+		//revisar si se ha seleccionado una base de datos
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
+		//revisar si existe la tabla
+		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables = (JSONArray)master.get("tables");
+		JSONArray constraints=(JSONArray)master.get("constraints");
+		int index=-1;
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentC=(JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				index=i;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//revisar que la tabla no sea referenciada
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(currentC.get("foreignKey")!=null){
+				JSONObject foreignKey=(JSONObject)currentC.get("foreignKey");
+				if(ctx.ID().getText().equals((String)foreignKey.get("table"))){
+					return new Tipo("error","Table "+ctx.ID().getText()+" cannot be deleted... is referenced in "+currentC.get("name"));
+				}
+			}
+		}
+		//borrar la tabla y sus constraints
+		tables.remove(index);
+		for(int i=constraints.size()-1;i>=0;i--){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("owner"))){
+				constraints.remove(i);
+			}
+		}
+		//escribir el archivo master.json y borrar el archivo de la tabla
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		eraseDirectory(baseDir+currentDatabase+"/"+ctx.ID().getText()+".json");
+		return new Tipo("void","Table "+ctx.ID().getText()+" dropped succesfully");
+	}
 	/**
 	 * {@inheritDoc}
 	 *

@@ -1,3 +1,7 @@
+import java.io.File;
+
+import javax.swing.tree.TreeModel;
+
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -21,12 +25,14 @@ public class ControladorDDL {
 		parser = new DDLGrammarParser(tokens);
 		
 		//Revision Lexica y Sintactica
-		parser.statement().inspect(parser);
+		parser.statement();
 		parser.reset();
 		
 		//Revision Semantica
 		EvalVisitor visitador = new EvalVisitor();
 		Tipo t = visitador.visit(parser.statement());
+		parser.reset();
+		
 		return t.getMensaje();
 	}
 

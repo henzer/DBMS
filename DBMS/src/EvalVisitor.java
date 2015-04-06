@@ -6,6 +6,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import javax.swing.JOptionPane;
+
 import org.antlr.v4.runtime.misc.NotNull;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -40,7 +42,21 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { return visitChildren(ctx); }
 	
-	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) {  
+		String nombre = ctx.ID().getText();
+		int opc = JOptionPane.showConfirmDialog(null, "¿Esta seguro que desea eliminar: " + nombre + "?", "Eliminar", JOptionPane.YES_NO_OPTION);
+		if (opc==0){
+			try {
+				dropDatabase(nombre);
+				return new Tipo("void", "Ha sido eliminada correctamente.");
+			} catch (Exception e) {
+				e.printStackTrace();
+				return new Tipo("error", e.getMessage());
+			}
+		}else{
+			return new Tipo("void", "Operacion cancelada.");
+		}
+	}
 	
 	@Override public Tipo visitConstraingDecl3(@NotNull DDLGrammarParser.ConstraingDecl3Context ctx) { return visitChildren(ctx); }
 	
@@ -97,7 +113,15 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) {
+		try {
+			alterDatabase(ctx.ID(0).getText(), ctx.ID(1).getText());
+			return new Tipo("void", "La base de datos se ha modificado con éxito.");
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new Tipo("error", e.getMessage());
+		}
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -491,7 +515,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						databases.remove(i);
 						JSONObject newO=new JSONObject();
 						newO.put("name", newname);
-						newO.put("length", (Integer)actual.get("length"));
+						newO.put("length", Integer.parseInt(actual.get("length").toString()));
 						databases.add(newO);
 						break;
 					}
@@ -508,7 +532,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	public void changeDirectoryName(String name,String newName){
 		File dir=new File(baseDir+name);
-		File newdir= new File(dir.getParent()+newName);
+		File newdir= new File(dir.getParent()+"/"+newName);
 		dir.renameTo(newdir);
 	}
 	//lectura de jsons *******************************
@@ -521,13 +545,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			obj = parser.parse(new FileReader(dir));
 			result = (JSONObject) obj;
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (ParseException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return result;

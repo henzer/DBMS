@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 
 import javax.swing.JOptionPane;
 
@@ -16,11 +17,17 @@ import org.json.simple.parser.ParseException;
 
 
 public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
-	String baseDir="databases/";
-	String databaseFileName="databases.json";
+	private String baseDir="databases/";
+	private String databaseFileName="databases.json";
 	private TablaTipos tablaTipos;
-
+	private static String currentDatabase="";
+	private String owner="";
+	private JSONArray currentConstraints=null;
+	private JSONArray currentColumns=null;
 	public EvalVisitor(){
+		if(!currentDatabase.equals("")){
+			System.out.println(currentDatabase);
+		}
 		File filep = new File(baseDir+databaseFileName);
 		 
 		// if file doesnt exists, then create it
@@ -40,7 +47,42 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tablaTipos.agregar("BOOLEAN", 1);
 	}
 	
-	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		//verificar la existencia de la tabla
+		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables=(JSONArray)master.get("tables");
+		int index=-1;
+		int length=-1;
+		for(int i=0;i<tables.size();i++){
+			JSONObject current=(JSONObject)tables.get(i);
+			if(ctx.ID(0).getText().equals((String)current.get("name"))){
+				index=i;
+				length=(int)(long)current.get("length");
+				break;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Table "+ctx.ID(0).getText()+" does not exist in "+currentDatabase);
+		}
+		//verificar la disponibilidad del nombre
+		if(!checkTableName(ctx.ID(1).getText(),master)){
+			return new Tipo("error","Name "+ctx.ID(1).getText()+" is not available");
+		}
+		//escribir los archivos y realizar los cambios de nombre
+		
+		JSONObject newTable=new JSONObject();
+		newTable.put("name", ctx.ID(1));
+		newTable.put("length",length );
+		tables.remove(index);
+		tables.add(newTable);
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		changeDirectoryName(currentDatabase+"/"+ctx.ID(0).getText()+".json",ctx.ID(1).getText());
+		return new Tipo("void","Table name changed succesfully");
+	}
 	
 	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) {  
 		String nombre = ctx.ID().getText();
@@ -58,13 +100,39 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 	}
 	
-	@Override public Tipo visitConstraingDecl3(@NotNull DDLGrammarParser.ConstraingDecl3Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitConstraintDecl3(@NotNull DDLGrammarParser.ConstraintDecl3Context ctx) { 
+		Tipo res=visit(ctx.expression());
+		if(res.getTipo().equals("error")){
+			return res;
+		}
+		addCheck(currentConstraints, owner, ctx.ID().getText(), res.getResultado());
+		return new Tipo("void"); 
+	}
 	
-	@Override public Tipo visitTipoFloat(@NotNull DDLGrammarParser.TipoFloatContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitTipoFloat(@NotNull DDLGrammarParser.TipoFloatContext ctx) { 
+		return new Tipo("FLOAT"); 
+	}
 	
-	@Override public Tipo visitLiteralFloat(@NotNull DDLGrammarParser.LiteralFloatContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitLiteralFloat(@NotNull DDLGrammarParser.LiteralFloatContext ctx) { 
+		ArrayList<String>currentExpression=new ArrayList<String>();
+		currentExpression.add(ctx.getText());
+		return new Tipo("FLOAT",currentExpression); 
+	}
 	
-	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		String res="";
+		JSONArray tables=(JSONArray)master.get("tables");
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentT=(JSONObject)tables.get(i);
+			res+=(String)currentT.get("name")+"\n";
+		}
+		return new Tipo("void","Tables:\n"+res);
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -92,14 +160,23 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitUniFactorFactor(@NotNull DDLGrammarParser.UniFactorFactorContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitUniFactorFactor(@NotNull DDLGrammarParser.UniFactorFactorContext ctx) { 
+		return visit(ctx.factor()); 
+		}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitUniFactorNot(@NotNull DDLGrammarParser.UniFactorNotContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitUniFactorNot(@NotNull DDLGrammarParser.UniFactorNotContext ctx) { 
+		Tipo res = visit(ctx.factor());
+		if(!res.getTipo().equals("BOOL")){
+			return new Tipo("error","Operator NOT requires BOOL expressions");
+		}
+		res.getResultado().add("NOT");
+		return res; 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -116,11 +193,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) {
 		try {
 			alterDatabase(ctx.ID(0).getText(), ctx.ID(1).getText());
-			return new Tipo("void", "La base de datos se ha modificado con éxito.");
+			return new Tipo("void", "Database name changed succesfully.");
 		} catch (Exception e) {
 			e.printStackTrace();
 			return new Tipo("error", e.getMessage());
 		}
+
 	}
 	/**
 	 * {@inheritDoc}
@@ -142,7 +220,15 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitUseDatabase(@NotNull DDLGrammarParser.UseDatabaseContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitUseDatabase(@NotNull DDLGrammarParser.UseDatabaseContext ctx) { 
+		try {
+			useDatabase(ctx.ID().getText());
+			return new Tipo("void", "Using database "+ctx.ID().getText());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new Tipo("error", e.getMessage()); 
+		} 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -156,7 +242,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitFactorLiteral(@NotNull DDLGrammarParser.FactorLiteralContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitFactorLiteral(@NotNull DDLGrammarParser.FactorLiteralContext ctx) { 
+		return visit(ctx.literal());
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -173,49 +261,170 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 	}
 
-	@Override public Tipo visitLiteralChar(@NotNull DDLGrammarParser.LiteralCharContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitLiteralChar(@NotNull DDLGrammarParser.LiteralCharContext ctx) { 
+		ArrayList<String> currentExpression=new ArrayList<String>();
+		currentExpression.add(ctx.getText());
+		Tipo res= new Tipo("CHAR");
+		res.setResultado(currentExpression);
+		res.setLength(ctx.getText().length());
+		return res;
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { 
+		Tipo res1=visit(ctx.expr3());
+		if(res1.getTipo().equals("error")){
+			return res1;
+		}
+		ArrayList<String> newExpr=new ArrayList<String>();
+		newExpr.addAll(res1.getResultado());
+		Tipo res2=visit(ctx.unifactor());
+		if(res2.getTipo().equals("error")){
+			return res2;
+		}
+		newExpr.addAll(res2.getResultado());
+		newExpr.add(ctx.rel_op().getText());
+		if(!res1.getTipo().equals(res2.getTipo())){
+			return new Tipo("error","Incompatible types around "+ctx.rel_op().getText());
+		}
+		return new Tipo("BOOL",newExpr); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitLiteralInt(@NotNull DDLGrammarParser.LiteralIntContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitLiteralInt(@NotNull DDLGrammarParser.LiteralIntContext ctx) {
+		ArrayList<String> currentExpression=new ArrayList<String>();
+		currentExpression.add(ctx.getText());
+		return new Tipo("INT",currentExpression); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr32(@NotNull DDLGrammarParser.Expr32Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr32(@NotNull DDLGrammarParser.Expr32Context ctx) { 
+		return visit(ctx.unifactor()); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { 
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
+		owner=ctx.ID(0).getText();
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		currentConstraints=(JSONArray)master.get("constraints");
+		if(!checkTableName(owner,master)){
+			return new Tipo("error","Table name "+owner+" not available in "+currentDatabase);
+		}
+		JSONObject newTable =new JSONObject();
+		newTable.put("name", owner);
+		JSONArray columns =new JSONArray();
+		for(int i=0;i<ctx.tipo().size();i++){
+			Tipo current=visit(ctx.tipo(i));
+			JSONObject newColumn = new JSONObject();
+			newColumn.put("name", ctx.ID(i+1).getText());
+			newColumn.put("type",current.getTipo());
+			if(current.getTipo().equals("CHAR")){
+				newColumn.put("length", current.getLength());
+			}
+			columns.add(newColumn);
+			
+		}
+		System.out.println(columns);
+		newTable.put("columns", columns);
+		currentColumns=columns;
+		for(int i=0;i<ctx.constraintDecl().size();i++){
+			Tipo current=visit(ctx.constraintDecl(i));
+			if(current.getTipo().equals("error")){
+				return current;
+			}
+		}
+		//agregar uno al contador de tablas en el archivo databases
+		JSONObject content = readJSON(baseDir+databaseFileName);
+		JSONArray databases= (JSONArray)content.get("databases");
+		for(int i=0;i<databases.size();i++){
+			JSONObject current = (JSONObject)databases.get(i);
+			if(currentDatabase.equals((String)current.get("name"))){
+				int conttables=(int)(long)(current.get("length"))+1;
+				databases.remove(i);
+				JSONObject newdata=new JSONObject();
+				newdata.put("name", currentDatabase);
+				newdata.put("length", conttables);
+				databases.add(newdata);
+				createFile(baseDir+databaseFileName,content+"");
+				break;
+			}
+		}
+		//creacion y alteracion de archivos
+		JSONArray tables = (JSONArray) master.get("tables");
+		tables.add(newTable);
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		JSONObject dataFile=new JSONObject();
+		JSONArray entries=new JSONArray();
+		dataFile.put("registros",entries);
+		createFile(baseDir+currentDatabase+"/"+owner+".json",master+"");
+		return new Tipo("void","Table "+owner+" created succesfully in "+currentDatabase);
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitTipoInt(@NotNull DDLGrammarParser.TipoIntContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitTipoInt(@NotNull DDLGrammarParser.TipoIntContext ctx) { 
+		return new Tipo("INT"); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { 
+		//revisar que se haya seleccionado una base de datos
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
+		//inicializacion
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		currentConstraints=(JSONArray)master.get("constraints");
+		//obtener columnas y verificacion de la existencia de la tabla
+		JSONArray tables = (JSONArray)master.get("tables");
+		JSONArray columns=null;
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentC= (JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				columns=(JSONArray)currentC.get("columns");
+			}
+		}
+		if(columns==null){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		currentColumns=columns;
+		owner=ctx.ID().getText();
+		for(int i=0;i<ctx.accion().size();i++){
+			Tipo res=visit(ctx.accion(i));
+			if(res.getTipo().equals("error")){
+				return res;
+			}
+		}
+		//escribir master.json
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		return new Tipo("void","Changes to "+owner+" in "+currentDatabase+" done succesfully");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -229,21 +438,59 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { 
+		//verificar la base de datos actual
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database Selected");
+		}
+		//verificar la existencia de la tabla
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables=(JSONArray)master.get("tables");
+		JSONArray constraints=(JSONArray)master.get("constraints");
+		JSONArray columns=null;
+		String columnas="";
+		String constr="";
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentT=(JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentT.get("name"))){
+				columns=(JSONArray)currentT.get("columns");
+			}
+		}
+		if(columns==null){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//escribir columnas
+		for(int i=0;i<columns.size();i++){
+			JSONObject currentC=(JSONObject)columns.get(i);
+			columnas+="name: "+(String)currentC.get("name")+" type: "+(String)currentC.get("type")+"\n";
+		}
+		//escribir constraints
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("owner"))){
+				constr+=currentC+"\n";
+			}
+		}
+		return new Tipo("void","Columns\n"+columnas+"Constraints\n"+constr);
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitTipoDate(@NotNull DDLGrammarParser.TipoDateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitTipoDate(@NotNull DDLGrammarParser.TipoDateContext ctx) { 
+		return new Tipo("DATE"); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitFactorExpression(@NotNull DDLGrammarParser.FactorExpressionContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitFactorExpression(@NotNull DDLGrammarParser.FactorExpressionContext ctx) { 
+		return visit(ctx.expression()); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -264,7 +511,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr22(@NotNull DDLGrammarParser.Expr22Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr22(@NotNull DDLGrammarParser.Expr22Context ctx) { 
+		return visit(ctx.expr3()); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -278,35 +527,137 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr21(@NotNull DDLGrammarParser.Expr21Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr21(@NotNull DDLGrammarParser.Expr21Context ctx) { 
+		Tipo res1=visit(ctx.expr2());
+		if(res1.getTipo().equals("error")){
+			return res1;
+		}
+		ArrayList<String> newExpr=new ArrayList<String>();
+		newExpr.addAll(res1.getResultado());
+		Tipo res2=visit(ctx.expr3());
+		if(res2.getTipo().equals("error")){
+			return res2;
+		}
+		newExpr.addAll(res2.getResultado());
+		newExpr.add(ctx.eq_op().getText());
+		if(!res1.getTipo().equals(res2.getTipo())){
+			return new Tipo("error","Incompatible types around "+ctx.eq_op().getText());
+		}
+		return new Tipo("BOOL",newExpr); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { 
+		//revisar si se ha seleccionado una base de datos
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
+		//revisar si existe la tabla
+		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONArray tables = (JSONArray)master.get("tables");
+		JSONArray constraints=(JSONArray)master.get("constraints");
+		int index=-1;
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentC=(JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				index=i;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//revisar que la tabla no sea referenciada
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(currentC.get("foreignKey")!=null){
+				JSONObject foreignKey=(JSONObject)currentC.get("foreignKey");
+				if(ctx.ID().getText().equals((String)foreignKey.get("table"))){
+					return new Tipo("error","Table "+ctx.ID().getText()+" cannot be deleted... is referenced in "+currentC.get("name"));
+				}
+			}
+		}
+		//borrar la tabla y sus constraints
+		tables.remove(index);
+		for(int i=constraints.size()-1;i>=0;i--){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("owner"))){
+				constraints.remove(i);
+			}
+		}
+		//escribir el archivo master.json y borrar el archivo de la tabla
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		eraseDirectory(baseDir+currentDatabase+"/"+ctx.ID().getText()+".json");
+		return new Tipo("void","Table "+ctx.ID().getText()+" dropped succesfully");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitConstraintDecl1(@NotNull DDLGrammarParser.ConstraintDecl1Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitConstraintDecl1(@NotNull DDLGrammarParser.ConstraintDecl1Context ctx) { 
+		ArrayList<String> ids=new ArrayList<String>();
+		for(int i=1;i<ctx.ID().size();i++){
+			ids.add(ctx.ID(i).getText());
+		}
+		try {
+			addPrimaryKey(currentConstraints, currentColumns, owner, ctx.ID(0).getText(), ids);
+			return new Tipo("void");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return new Tipo("error",e.getMessage());
+		}
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitConstraintDecl2(@NotNull DDLGrammarParser.ConstraintDecl2Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitConstraintDecl2(@NotNull DDLGrammarParser.ConstraintDecl2Context ctx) { 
+		ArrayList<String> to = new ArrayList<String>();
+		ArrayList<String> from=new ArrayList<String>();
+		boolean references=false;
+		String referenced="";
+		for(int i=5;i<ctx.children.size();i++){
+			String currentChild=ctx.children.get(i).getText();
+			if(!(currentChild.equals("(")||currentChild.equals(")")||currentChild.equals(",")||currentChild.equals("REFERENCES"))){
+				if(references){
+					to.add(currentChild);
+				}
+				else{
+					from.add(currentChild);
+				}
+			}
+			else if(currentChild.equals("REFERENCES")){
+				references=true;
+				i++;
+				referenced=ctx.children.get(i).getText();
+			}
+		}
+		try {
+			addForeignKey(currentConstraints, currentColumns, owner, ctx.ID(0).getText(), from, referenced, to);
+			return new Tipo("void");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return new Tipo("error",e.getMessage());
+		}
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitShowDatabases(@NotNull DDLGrammarParser.ShowDatabasesContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitShowDatabases(@NotNull DDLGrammarParser.ShowDatabasesContext ctx) { 
+		return new Tipo ("void",showDatabases());
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -334,64 +685,223 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitLiteralDate(@NotNull DDLGrammarParser.LiteralDateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitLiteralDate(@NotNull DDLGrammarParser.LiteralDateContext ctx) { 
+		ArrayList<String> currentExpression=new ArrayList<String>();
+		currentExpression.add(ctx.getText());
+		return new Tipo("DATE",currentExpression); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpression1(@NotNull DDLGrammarParser.Expression1Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpression1(@NotNull DDLGrammarParser.Expression1Context ctx) { 
+		Tipo res1=visit(ctx.expression());
+		if(res1.getTipo().equals("error")){
+			return res1;
+		}
+		ArrayList<String> newExpr=new ArrayList<String>();
+		newExpr.addAll(res1.getResultado());
+		Tipo res2=visit(ctx.expr1());
+		if(res2.getTipo().equals("error")){
+			return res2;
+		}
+		newExpr.addAll(res2.getResultado());
+		newExpr.add(ctx.cond_op2().getText());
+		if((!res1.getTipo().equals("BOOL"))||(!res2.getTipo().equals("BOOL"))){
+			return new Tipo("error","Incompatible types around "+ctx.cond_op2().getText());
+		}
+		return new Tipo("BOOL",newExpr); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { 
+		//revisar que la columna a ingresar no tenga nombre repetido
+		 for(int i=0;i<currentColumns.size();i++){
+			 JSONObject currentC=(JSONObject)currentColumns.get(i);
+			 if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				 return new Tipo("error","Column "+ctx.ID().getText()+" already exists");
+			 }
+		 }
+		 Tipo actual=visit(ctx.tipo());
+		 JSONObject newColumn=new JSONObject();
+		 newColumn.put("name", ctx.ID().getText());
+		 newColumn.put("type", actual.getTipo());
+		 if(actual.getTipo().equals("CHAR")){
+			 newColumn.put("length", actual.getLength());
+		 }
+		 currentColumns.add(newColumn);
+		 for(int i=0;i<ctx.constraintDecl().size();i++){
+			 Tipo currentT=visit(ctx.constraintDecl(i));
+			 if(currentT.getTipo().equals("error")){
+				 return currentT;
+			 }
+		 }
+		 return new Tipo("void");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion2(@NotNull DDLGrammarParser.Accion2Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion2(@NotNull DDLGrammarParser.Accion2Context ctx) { 
+		return visit(ctx.constraintDecl());
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitTipoChar(@NotNull DDLGrammarParser.TipoCharContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitTipoChar(@NotNull DDLGrammarParser.TipoCharContext ctx) { 
+		Tipo res = new Tipo("CHAR");
+		if(ctx.NUM()!=null){
+			res.setLength(Integer.parseInt(ctx.NUM().getText()));
+		}
+		else{
+			res.setLength(Integer.parseInt(ctx.UNUM().getText()));
+		}
+		return res;
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion3(@NotNull DDLGrammarParser.Accion3Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion3(@NotNull DDLGrammarParser.Accion3Context ctx) { 
+		//revisar que exista la columna
+		int index=-1;
+		for(int i=0;i<currentColumns.size();i++){
+			if(ctx.ID().getText().equals((String)currentColumns.get(i))){
+				index=i;
+				break;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Column "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//revisar que no sea mencionado en constraints
+		for(int i=0;i<currentConstraints.size();i++){
+			 JSONObject currentC=(JSONObject)currentConstraints.get(i);
+			 //revisar primary key
+			 if(currentC.get("primaryKey")!=null){
+				 JSONArray primaryKey = (JSONArray)currentC.get("primaryKey");
+				 for(int j=0;j<primaryKey.size();j++){
+					 if(ctx.ID().getText().equals((String)primaryKey.get(i))){
+						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+					 }
+				 }
+			 }
+			 //revisar foreign key
+			 else if(currentC.get("foreignKey")!=null){
+				 JSONObject foreignKey=(JSONObject)currentC.get("foreignKey");
+				 //revisar en columnas locales
+				 if(owner.equals((String)currentC.get("owner"))){
+					 JSONArray columnsL=(JSONArray)foreignKey.get("columns");
+					 for(int j=0;j<columnsL.size();j++){
+						 if(ctx.ID().getText().equals((String)columnsL.get(j))){
+							 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+						 }
+					 }
+				 }
+				 //revisar en referencias
+				 else if(owner.equals((String)foreignKey.get("table"))){
+					 JSONArray columnsR=(JSONArray)foreignKey.get("references");
+					 for(int j=0;j<columnsR.size();j++){
+						 if(ctx.ID().getText().equals((String)columnsR.get(j))){
+							 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+						 }
+					 }
+				 }
+			 }
+			 //revisar check
+			 else if(currentC.get("check")!=null){
+				 JSONArray check=(JSONArray)currentC.get("check");
+				 for(int j=0;j<check.size();j++){
+					 if(ctx.ID().getText().equals((String)check.get(j))){
+						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+					 }
+				 }
+			 }
+		}
+		//eliminacion de campos de los registros de la tabla correspondiente
+		currentColumns.remove(index);
+		return new Tipo("void","Column "+ctx.ID().getText()+" dropped succesfully");		
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr11(@NotNull DDLGrammarParser.Expr11Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr11(@NotNull DDLGrammarParser.Expr11Context ctx) { 
+		Tipo res1=visit(ctx.expr1());
+		if(res1.getTipo().equals("error")){
+			return res1;
+		}
+		ArrayList<String> newExpr=new ArrayList<String>();
+		newExpr.addAll(res1.getResultado());
+		Tipo res2=visit(ctx.expr2());
+		if(res2.getTipo().equals("error")){
+			return res2;
+		}
+		newExpr.addAll(res2.getResultado());
+		newExpr.add(ctx.cond_op1().getText());
+		if((!res1.getTipo().equals("BOOL"))||(!res2.getTipo().equals("BOOL"))){
+			return new Tipo("error","Incompatible types around "+ctx.cond_op1().getText());
+		}
+		return new Tipo("BOOL",newExpr);  
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion4(@NotNull DDLGrammarParser.Accion4Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion4(@NotNull DDLGrammarParser.Accion4Context ctx) { 
+		//buscar la constraint
+		for(int i=0;i<currentConstraints.size();i++){
+			JSONObject currentC=(JSONObject)currentConstraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				currentConstraints.remove(i);
+				return new Tipo("void");
+			}
+		}
+		return new Tipo("error","Constraint "+ctx.ID().getText()+" does not exist");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpr12(@NotNull DDLGrammarParser.Expr12Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpr12(@NotNull DDLGrammarParser.Expr12Context ctx) { 
+		return visit(ctx.expr2()); 
+	}
 	
+	@Override public Tipo visitFactorID(@NotNull DDLGrammarParser.FactorIDContext ctx) { 
+		ArrayList<String> currentExpression=new ArrayList<String>();
+		currentExpression.add(ctx.getText());
+		for(int i=0;i<currentColumns.size();i++){
+			JSONObject current=(JSONObject)currentColumns.get(i);
+			if(ctx.ID().getText().equals((String)current.get("name"))){
+				if("CHAR".equals((String)current.get("type"))){
+					Tipo resultado=new Tipo((String)current.get("type")); 
+					resultado.setLength(Integer.parseInt((String)current.get("length")));
+					return resultado;
+				}
+				return new Tipo((String)current.get("type"),currentExpression);
+			}
+		}
+		return new Tipo("error","Column "+ctx.ID()+" does not exist in "+owner); 
+	}
 	
 	
 	
@@ -415,6 +925,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			//crear el archivo master.json
 			JSONObject master = new JSONObject();
 			master.put("tables", new JSONArray());
+			master.put("constraints", new JSONArray());
 			createFile(baseDir+name+"/master.json",master+"");
 		}else{
 			throw new Exception("Database with name "+name+" already exists");
@@ -486,7 +997,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	//eliminacion de directorios
 	public void eraseDirectory(String dir){
-		File path = new File(baseDir+dir);
+		File path = new File(dir.toUpperCase());
 		if( path.exists() ) {
 			File[] files = path.listFiles();
 		    for(int i=0; i<files.length; i++) {
@@ -497,6 +1008,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		    		files[i].delete();
 		    	}
 		    }
+		}
+		else{
+			System.out.println("path does not exist"+path);
 		}
 		    path.delete();
 	}
@@ -530,11 +1044,239 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			throw new Exception("Database "+name+" does not exist");
 		}
 	}
+	//cambia el nombre de un directorio o archivo
 	public void changeDirectoryName(String name,String newName){
 		File dir=new File(baseDir+name);
 		File newdir= new File(dir.getParent()+"/"+newName);
 		dir.renameTo(newdir);
 	}
+	//show databases *devuelve un String temporalmente
+	public String showDatabases(){
+		String res="";
+		JSONObject content=readJSON(baseDir+databaseFileName);
+		JSONArray databases=(JSONArray)content.get("databases");
+		for(int i=0;i<databases.size();i++){
+			JSONObject actual=(JSONObject)databases.get(i);
+			res+="nombre: "+actual.get("name")+"-tablas: "+actual.get("length")+"\n";
+		}
+		return res;
+	}
+	//useDatabase tira una excepcion 
+	public void useDatabase(String nombre)throws Exception{
+		JSONArray databases=(JSONArray)(readJSON(baseDir+databaseFileName).get("databases"));
+		for(int i=0;i<databases.size();i++){
+			JSONObject actual=(JSONObject)databases.get(i);
+			if(nombre.equals((String)actual.get("name"))){
+				currentDatabase=nombre;
+				return;
+			}
+			
+		}
+		throw new Exception("Database "+nombre+" does not exist");
+	}
+	//metodos para manejo de tablas*************************************************
+	//agrega una columna a un objeto JSONArray
+	public JSONArray addColumn(JSONArray columnas,String nombreColumna,String tipo)throws Exception{
+		for(int i=0;i<columnas.size();i++){
+			JSONObject currentC=(JSONObject)columnas.get(i);
+			if(nombreColumna.equals((String)currentC.get("name"))){
+				throw new Exception("Column "+nombreColumna+" already exists");
+			}
+		}
+		JSONObject nuevo=new JSONObject();
+		nuevo.put("name", nombreColumna);
+		nuevo.put("type", tipo);
+		columnas.add(nuevo);
+		return columnas;
+	}
+	//agrega una primary key antes de llamar a este metodo es necesario verificar la existencia de de la tabla owner
+	public JSONArray addPrimaryKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> nombresID)throws Exception{
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(nombreC.equals((String)currentC.get("nombreC"))){
+				throw new Exception("Constraint with name "+nombreC+" already exists");
+			}
+			if(owner.equals((String)currentC.get("owner"))&&(currentC.get("primaryKey")!=null)){
+				throw new Exception("Primary key for table "+owner+" already exists");
+			}
+		}
+		JSONArray arrayID = new JSONArray();
+		for(int j=0;j<nombresID.size();j++){
+			boolean found=false;
+			for(int i=0;i<columnas.size();i++){
+				JSONObject cActual=(JSONObject)columnas.get(i);
+				if(nombresID.get(j).equals((String)cActual.get("name"))){
+					found=true;
+				}
+				
+			}
+			if(!found){
+				throw new Exception("Column "+nombresID.get(j)+" does not exist in "+owner);
+			}
+			arrayID.add(nombresID.get(j));
+		}
+		JSONObject nuevo = new JSONObject();
+		nuevo.put("owner", owner);
+		nuevo.put("name", nombreC);
+		nuevo.put("primaryKey", arrayID);
+		constraints.add(nuevo);
+		return constraints;
+	}
+	//agrega una foreign key antes de llamar a este metodo es necesario verificar la existencia de la tabla owner(si no es una tabla nueva)
+	public JSONArray addForeignKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> fromC,String references,ArrayList<String> toC)throws Exception{
+		//revisar que exista la tabla a la que se le hace referencia
+		JSONArray tables=(JSONArray)readJSON(baseDir+currentDatabase+"/master.json").get("tables");
+		boolean foundT=false;
+		for(int i=0;i<tables.size();i++){
+			JSONObject current=(JSONObject)tables.get(i);
+			if(references.equals((String)current.get("name"))){
+				foundT=true;
+				break;
+			}
+		}
+		if(!foundT){
+			throw new Exception("Database "+references+" not found");
+		}
+		//ver que no exista nombre de constraint repetido
+		if(fromC.size()!=toC.size()){
+			throw new Exception("Size of fields do not match ");
+		}
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(nombreC.equals((String)currentC.get("name"))){
+				throw new Exception("Constraint with name "+nombreC+" already exists");
+			}
+			else{
+				//la constraint debe ser foreign key
+				JSONObject currentFK=(JSONObject)currentC.get("foreignKey");
+				if(currentFK!=null){
+					JSONArray columnsD =(JSONArray)currentFK.get("columns");
+					//revisar que cada columna solo haga regerencia a otra columna, no a varias
+					for (int j=0;i<fromC.size();j++){
+						for(int k=0;k<columnsD.size();k++){
+							if(fromC.get(j).equals((String)columnsD.get(k))){
+								throw new Exception("The column "+columnsD.get(j)+" already has a foreign key");
+							}
+						}
+					}
+				}
+			}
+			//revisar que exista la primary key que contiene a todas las columnas de la foreign key
+			if(references.equals((String)currentC.get("owner"))&&currentC.get("primaryKey")!=null){
+				JSONArray keys=(JSONArray)currentC.get("primaryKey");
+				for(int k=0;k<toC.size();k++){
+					boolean foundC=false;
+					
+					for(int x=0;x<keys.size();x++){
+						if(toC.get(k).equals((String)keys.get(x))){
+							foundC=true;
+						}
+					}
+					if(!foundC){
+						String combination=toC.get(0);
+						for(int y=1;y<toC.size();y++){
+							combination+=","+toC.get(y);
+						}
+						throw new Exception("Table "+references+" has no primary key "+combination);
+					}
+				}
+			}
+		}
+		
+		//creacion de la constraint
+		JSONObject nuevo = new JSONObject();
+		nuevo.put("owner", owner);
+		nuevo.put("name", nombreC);
+		JSONObject key=new JSONObject();
+		key.put("table", references);
+		JSONArray columnasTabla= new JSONArray();
+		JSONArray columnasRef=new JSONArray();
+		for(int i=0;i<fromC.size();i++){
+			columnasTabla.add(fromC.get(i));
+			columnasRef.add(toC.get(i));
+		}
+		key.put("columnas", columnasTabla);
+		key.put("references", columnasRef);
+		nuevo.put("foreignKey", key);
+		return constraints;
+	}
+	//expression debe estar en post fix y el checkeo de tipos se hace en los visitor, la existencia de las columnas se hace en visitor
+	public JSONArray addCheck(JSONArray constraints,String owner,String nombreC, ArrayList<String> expression){
+		JSONObject nuevo=new JSONObject();
+		nuevo.put("owner",owner);
+		nuevo.put("name",nombreC);
+		JSONArray expr=new JSONArray();
+		for(int i=0;i<expression.size();i++){
+			expr.add(expression.get(i));
+		}
+		nuevo.put("check", expr);
+		constraints.add(nuevo);
+		return constraints;
+	}
+	//cambia el nombre de la tabla de parametro es necesario pasar el JSON Object que corresponde al master.json de la base de datos utilizada
+	public boolean checkTableName(String name,JSONObject master){
+		JSONArray tables=(JSONArray)master.get("tables");
+		for(int i=0;i<tables.size();i++){
+			JSONObject current = (JSONObject)tables.get(i);
+			if(name.equals((String)current.get("name"))){
+				return false;
+			}
+		}
+		return true;
+	}
+	//renombra la tabla de nombre name en la base de datos currentDatabase
+	public void renameTable(String name,String newName)throws Exception{
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		if(!checkTableName(newName,master)){
+			throw new Exception("Table name "+newName+" not available");
+		}
+		JSONArray tables=(JSONArray)master.get("tables");
+		JSONArray constraints=(JSONArray)master.get("constraints");
+		boolean found=false;
+		//renombrar el campo en el listado de nombres
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentT=(JSONObject)tables.get(i);
+			if(name.equals((String)currentT.get("name"))){
+				tables.remove(i);
+				JSONObject nuevo=new JSONObject();
+				nuevo.put("name",newName);
+				nuevo.put("length", (String)currentT.get("length"));
+				tables.add(nuevo);
+			}
+		}
+		//renombrar todos las referencias en los constraints
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			JSONObject nuevo=new JSONObject();
+			boolean change=false;
+			if(name.equals((String)currentC.get("owner"))){
+				change=true;
+				nuevo.put("owner",newName);
+				nuevo.put("name", (String)currentC.get("name"));
+			}
+			else{
+				nuevo=currentC;
+			}
+			JSONObject fk=(JSONObject)currentC.get("foreignKey");
+			if(fk!=null){
+				JSONObject newFK=new JSONObject();
+				if(name.equals((String)fk.get("tables"))){
+					change=true;
+					newFK.put("columns", (JSONArray)fk.get("columns"));
+					newFK.put("references", (JSONArray)fk.get("references"));
+					newFK.put("table", newName);
+					nuevo.remove("foreignKey");
+					nuevo.put("foreignKey", fk);
+				}
+			}
+			if(change){
+				constraints.remove(i);
+				constraints.add(nuevo);
+			}
+		}
+	}
+	
+	//
 	//lectura de jsons *******************************
 	//lectura de archivos databases.json
 	public JSONObject readJSON(String dir){

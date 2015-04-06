@@ -3,7 +3,7 @@ Create database #ya
 	-verificar que otra base de datos no exista con el mismo nombre
 	-crear el directorio
 
-Alter database 
+Alter database #ya
 	-verificar que el nombre no exista
 	-cambiar el nombre en el archivo databases.json
 	-cambiar el nombre del directorio

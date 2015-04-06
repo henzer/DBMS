@@ -371,7 +371,38 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { 
+		//revisar que se haya seleccionado una base de datos
+		if(currentDatabase.equals("")){
+			return new Tipo("error","No database selected");
+		}
+		//inicializacion
+		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		currentConstraints=(JSONArray)master.get("constraints");
+		//obtener columnas y verificacion de la existencia de la tabla
+		JSONArray tables = (JSONArray)master.get("tables");
+		JSONArray columns=null;
+		for(int i=0;i<tables.size();i++){
+			JSONObject currentC= (JSONObject)tables.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				columns=(JSONArray)currentC.get("columns");
+			}
+		}
+		if(columns==null){
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		currentColumns=columns;
+		owner=ctx.ID().getText();
+		for(int i=0;i<ctx.accion().size();i++){
+			Tipo res=visit(ctx.accion(i));
+			if(res.getTipo().equals("error")){
+				return res;
+			}
+		}
+		//escribir master.json
+		createFile(baseDir+currentDatabase+"/master.json",master+"");
+		return new Tipo("void","Changes to "+owner+" in "+currentDatabase+" done succesfully");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -592,14 +623,39 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { 
+		//revisar que la columna a ingresar no tenga nombre repetido
+		 for(int i=0;i<currentColumns.size();i++){
+			 JSONObject currentC=(JSONObject)currentColumns.get(i);
+			 if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				 return new Tipo("error","Column "+ctx.ID().getText()+" already exists");
+			 }
+		 }
+		 Tipo actual=visit(ctx.tipo());
+		 JSONObject newColumn=new JSONObject();
+		 newColumn.put("name", ctx.ID().getText());
+		 newColumn.put("type", actual.getTipo());
+		 if(actual.getTipo().equals("CHAR")){
+			 newColumn.put("length", actual.getLength());
+		 }
+		 currentColumns.add(newColumn);
+		 for(int i=0;i<ctx.constraintDecl().size();i++){
+			 Tipo currentT=visit(ctx.constraintDecl(i));
+			 if(currentT.getTipo().equals("error")){
+				 return currentT;
+			 }
+		 }
+		 return new Tipo("void");
+	}
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion2(@NotNull DDLGrammarParser.Accion2Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion2(@NotNull DDLGrammarParser.Accion2Context ctx) { 
+		return visit(ctx.constraintDecl());
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -622,7 +678,66 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion3(@NotNull DDLGrammarParser.Accion3Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion3(@NotNull DDLGrammarParser.Accion3Context ctx) { 
+		//revisar que exista la columna
+		int index=-1;
+		for(int i=0;i<currentColumns.size();i++){
+			if(ctx.ID().getText().equals((String)currentColumns.get(i))){
+				index=i;
+				break;
+			}
+		}
+		if(index==-1){
+			return new Tipo("error","Column "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+		}
+		//revisar que no sea mencionado en constraints
+		for(int i=0;i<currentConstraints.size();i++){
+			 JSONObject currentC=(JSONObject)currentConstraints.get(i);
+			 //revisar primary key
+			 if(currentC.get("primaryKey")!=null){
+				 JSONArray primaryKey = (JSONArray)currentC.get("primaryKey");
+				 for(int j=0;j<primaryKey.size();j++){
+					 if(ctx.ID().getText().equals((String)primaryKey.get(i))){
+						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+					 }
+				 }
+			 }
+			 //revisar foreign key
+			 else if(currentC.get("foreignKey")!=null){
+				 JSONObject foreignKey=(JSONObject)currentC.get("foreignKey");
+				 //revisar en columnas locales
+				 if(owner.equals((String)currentC.get("owner"))){
+					 JSONArray columnsL=(JSONArray)foreignKey.get("columns");
+					 for(int j=0;j<columnsL.size();j++){
+						 if(ctx.ID().getText().equals((String)columnsL.get(j))){
+							 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+						 }
+					 }
+				 }
+				 //revisar en referencias
+				 else if(owner.equals((String)foreignKey.get("table"))){
+					 JSONArray columnsR=(JSONArray)foreignKey.get("references");
+					 for(int j=0;j<columnsR.size();j++){
+						 if(ctx.ID().getText().equals((String)columnsR.get(j))){
+							 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+						 }
+					 }
+				 }
+			 }
+			 //revisar check
+			 else if(currentC.get("check")!=null){
+				 JSONArray check=(JSONArray)currentC.get("check");
+				 for(int j=0;j<check.size();j++){
+					 if(ctx.ID().getText().equals((String)check.get(j))){
+						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
+					 }
+				 }
+			 }
+		}
+		//eliminacion de campos de los registros de la tabla correspondiente
+		currentColumns.remove(index);
+		return new Tipo("void","Column "+ctx.ID().getText()+" dropped succesfully");		
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -653,7 +768,17 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAccion4(@NotNull DDLGrammarParser.Accion4Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitAccion4(@NotNull DDLGrammarParser.Accion4Context ctx) { 
+		//buscar la constraint
+		for(int i=0;i<currentConstraints.size();i++){
+			JSONObject currentC=(JSONObject)currentConstraints.get(i);
+			if(ctx.ID().getText().equals((String)currentC.get("name"))){
+				currentConstraints.remove(i);
+				return new Tipo("void");
+			}
+		}
+		return new Tipo("error","Constraint "+ctx.ID().getText()+" does not exist");
+	}
 	/**
 	 * {@inheritDoc}
 	 *

@@ -7,10 +7,12 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 
 import javax.swing.JOptionPane;
 
 import org.antlr.v4.runtime.misc.NotNull;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -22,10 +24,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private String databaseFileName="databases.json";
 	private TablaTipos tablaTipos;
 	private static String currentDatabase="";
+	private static JSONObject currentDataBase;
+	
 	private String owner="";
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
 	private HashMap<String, JSONObject> memoria;
+	private JSONObject currentDataFile=null;
+	
 	
 	
 	public EvalVisitor(){
@@ -228,6 +234,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitUseDatabase(@NotNull DDLGrammarParser.UseDatabaseContext ctx) { 
 		try {
 			useDatabase(ctx.ID().getText());
+			//Se carga la metadata de la base de datos que se está utilizando.
+			currentDataBase = readJSON(baseDir+currentDatabase+"/master.json");
+			
 			return new Tipo("void", "Using database "+ctx.ID().getText());
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -331,22 +340,28 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		owner=ctx.ID(0).getText();
 		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
 		currentConstraints=(JSONArray)master.get("constraints");
+		
 		if(!checkTableName(owner,master)){
 			return new Tipo("error","Table name "+owner+" not available in "+currentDatabase);
 		}
 		JSONObject newTable =new JSONObject();
 		newTable.put("name", owner);
 		JSONArray columns =new JSONArray();
+		JSONObject dataFile=new JSONObject();
 		for(int i=0;i<ctx.tipo().size();i++){
+			JSONObject nuevo=new JSONObject();
+			dataFile.put(ctx.ID(i+1), nuevo);
 			Tipo current=  visit(ctx.tipo(i));
+			nuevo.put("type", current.getTipo());
 			JSONObject newColumn = new JSONObject();
 			newColumn.put("name", ctx.ID(i+1).getText());
 			newColumn.put("type",current.getTipo());
 			if(current.getTipo().equals("CHAR")){
 				newColumn.put("length", current.getLength());
+				nuevo.put("length", current.getLength());
 			}
+			nuevo.put("entries", new JSONArray());
 			columns.add(newColumn);
-			
 		}
 		System.out.println(columns);
 		newTable.put("columns", columns);
@@ -377,10 +392,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONArray tables = (JSONArray) master.get("tables");
 		tables.add(newTable);
 		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		JSONObject dataFile=new JSONObject();
-		JSONArray entries=new JSONArray();
-		dataFile.put("registros",entries);
-		createFile(baseDir+currentDatabase+"/"+owner+".json",master+"");
+		createFile(baseDir+currentDatabase+"/"+owner+".json",dataFile+"");
 		return new Tipo("void","Table "+owner+" created succesfully in "+currentDatabase);
 	}
 	/**
@@ -420,6 +432,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		currentColumns=columns;
 		owner=ctx.ID().getText();
+		currentDataFile=readJSON(baseDir+currentDatabase+"/"+owner+".json");
 		for(int i=0;i<ctx.accion().size();i++){
 			Tipo res=  visit(ctx.accion(i));
 			if(res.getTipo().equals("error")){
@@ -427,6 +440,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//escribir master.json
+		createFile(baseDir+currentDatabase+"/"+owner+".json",currentDataFile+"");
 		createFile(baseDir+currentDatabase+"/master.json",master+"");
 		return new Tipo("void","Changes to "+owner+" in "+currentDatabase+" done succesfully");
 	}
@@ -727,26 +741,41 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { 
 		//revisar que la columna a ingresar no tenga nombre repetido
+		String name="";
 		 for(int i=0;i<currentColumns.size();i++){
 			 JSONObject currentC=(JSONObject)currentColumns.get(i);
-			 if(ctx.ID().getText().equals((String)currentC.get("name"))){
+			 name=(String)currentC.get("name");
+			 if(ctx.ID().getText().equals(name)){
 				 return new Tipo("error","Column "+ctx.ID().getText()+" already exists");
 			 }
+			 
 		 }
+		 JSONObject column=(JSONObject)currentDataFile.get(name);
+		 JSONArray elements=(JSONArray)column.get("entries");
+		 JSONObject nColumn=new JSONObject();
+		 JSONArray nEntries=new JSONArray();
+		 for(int i=0;i<elements.size();i++){
+			 nEntries.add(null);
+		 }
+		 nColumn.put("entries", nEntries);
 		 Tipo actual=  visit(ctx.tipo());
 		 JSONObject newColumn=new JSONObject();
 		 newColumn.put("name", ctx.ID().getText());
 		 newColumn.put("type", actual.getTipo());
+		 nColumn.put("type", actual.getTipo());
 		 if(actual.getTipo().equals("CHAR")){
 			 newColumn.put("length", actual.getLength());
+			 nColumn.put("length", actual.getLength());
 		 }
-		 currentColumns.add(newColumn);
+		 
 		 for(int i=0;i<ctx.constraintDecl().size();i++){
 			 Tipo currentT=  visit(ctx.constraintDecl(i));
 			 if(currentT.getTipo().equals("error")){
 				 return currentT;
 			 }
 		 }
+		 currentColumns.add(newColumn);
+
 		 return new Tipo("void");
 	}
 	/**
@@ -838,6 +867,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		//eliminacion de campos de los registros de la tabla correspondiente
 		currentColumns.remove(index);
+		currentDataFile.remove(ctx.ID().getText());
 		return new Tipo("void","Column "+ctx.ID().getText()+" dropped succesfully");		
 	}
 	/**
@@ -916,13 +946,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		for(DDLGrammarParser.InsertContext insert : ctx.insert()){
 			Tipo t = visit(insert);
 			if (t.isError()) return t;
+			contador++;
 		}
 		
 		for(String key: memoria.keySet()){
 			createFile(baseDir+currentDatabase+"/"+key+".json",memoria.get(key).toJSONString());
 		}
 		
-		return new Tipo("void", "Se ha insertado con éxito.");
+		return new Tipo("void", "Se ha insertado "+ contador+" registros con éxito.");
 		
 	}
 	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) { return visitChildren(ctx); }
@@ -930,12 +961,33 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
-		String tabla = ctx.ID(0).getText();
-		//JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
-		//if(!checkTableName(newName,master)){
-		//	throw new Exception("Table name "+newName+" not available");
-		//}
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");
+			
+		}
 		
+		
+		
+		String tabla = ctx.ID(0).getText();
+		
+		
+		//Verfica que exista la tabla en la base de datos actual.
+
+		JSONArray tablas = (JSONArray) currentDataBase.get("tables");
+		JSONObject currentTable=null;
+		boolean encontrado = false;
+		for(int i = 0; i<tablas.size(); i++){
+			JSONObject current = (JSONObject) tablas.get(i);
+			if(tabla.equals(current.get("name").toString())){
+				currentTable = current;
+				break;
+			}
+		}
+		if(currentTable==null){
+			return new Tipo("error", "ERROR.-Table name "+tabla+" not available");
+		}
+		
+		//Se guarda la relacion en memoria para optimizar el manejador.
 		JSONObject relacion;
 		if(memoria.containsKey(tabla)){
 			relacion = memoria.get(tabla);
@@ -944,13 +996,108 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			memoria.put(tabla, relacion);
 		}
 		
+		//Se verifican las restricciones.
+		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		
+		//Caso cuando no se especifican campos
+		if(ctx.ID().size()==1){
+			JSONArray columns = (JSONArray) currentTable.get("columns");
+			if(columns.size()!=ctx.literal().size()){
+				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas de la tabla " + tabla);
+			}
+			for(int i=0; i<ctx.literal().size(); i++){
+				Tipo t1 = visit(ctx.literal(i));
+				String t2 = ((JSONObject)columns.get(i)).get("type").toString();
+				if(!t1.getTipo().equals(t2)){
+					return new Tipo("error", "ERROR.-No coincide el tipo de la columna " + ((JSONObject)columns.get(i)).get("name").toString() + " con el tipo ingresado.");
+				}else if (t1.getTipo().equals("CHAR")){
+					int length = Integer.parseInt(((JSONObject)columns.get(i)).get("length").toString());
+					if(length<t1.getLength()){
+						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + ((JSONObject)columns.get(i)).get("name").toString() + "(" + length +")");
+					}
+				}
+			}
+			
+			for(int i=0; i<ctx.literal().size(); i++){
+				String nameCol = ((JSONObject)columns.get(i)).get("name").toString();
+				JSONObject columna = (JSONObject) relacion.get(nameCol);
+				JSONArray entries = (JSONArray)columna.get("entries");
+				entries.add(ctx.literal(i).getText());
+				//Aquí voy
+			}
+			return new Tipo("void", "Se ha insertado con éxito.");
+		}else{
+			JSONArray columns = (JSONArray) currentTable.get("columns");
+			JSONArray columnsInsert = new JSONArray();
+			
+			int c = 0;
+			for(TerminalNode idCol: ctx.ID()){
+				if(c!=0)
+					columnsInsert.add(idCol.getText());
+				c++;
+			}
+			
+			
+			if((ctx.ID().size()-1)!=ctx.literal().size()){
+				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas especificadas en la tabla " + tabla);
+			}
+			
+			for(int i=0; i<ctx.literal().size(); i++){
+				String idCol = ctx.ID(i+1).getText();
+				if(!relacion.containsKey(idCol)){
+					return new Tipo("error", "ERROR.-No existe la columna " + idCol + " en la tabla " + tabla);
+				}
+				
+				JSONObject columna = (JSONObject) relacion.get(idCol);
+				String t1 = columna.get("type").toString();
+				Tipo t2 = visit(ctx.literal(i));
+				
+				if(!t1.equals(t2.getTipo())){
+					return new Tipo("error", "ERROR.-No coincide el tipo de la columna " + idCol + " con el tipo ingresado.");
+				}else if (t1.equals("CHAR")){
+					int length = Integer.parseInt(columna.get("length").toString());
+					if(length<t2.getLength()){
+						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + ((JSONObject)columns.get(i)).get("name").toString() + "(" + length +")");
+					}
+				}
+			}
+			
+			for(int i=0; i<columns.size(); i++){
+				String nameCol = ((JSONObject)columns.get(i)).get("name").toString();
+				JSONObject columna = (JSONObject) relacion.get(nameCol);
+				JSONArray entries = (JSONArray)columna.get("entries");
+				
+				if(columnsInsert.contains(nameCol)){
+					int indice = columnsInsert.indexOf(nameCol); 
+					entries.add(ctx.literal(indice).getText());
+				}else{
+					entries.add(null);
+				}
+				//Aquí voy
+			}
+			return new Tipo("void", "Se ha insertado con éxito.");
+			
+			
+			
+		}
 		
+		/*
+		for (int i=1; i<ctx.ID().size(); i++){
+			if(!relacion.containsKey(ctx.ID(i))){
+				return new Tipo("error", "ERROR.-El campo " + ctx.ID(i) + " no existe en la relacion " + tabla);
+			}
+			JSONObject campo = (JSONObject)relacion.get(ctx.ID(i));
+			if(ctx.literal().size()<=i-1){
+				return new Tipo("error", "ERROR.-No coincide el numero de valores a ingresar, con los campos mencionados");
+			}
+			Tipo t = visit(ctx.literal(i-1));
+			
+			
+		}
 		
-		
-		
-		return visitChildren(ctx); 
+		*/
 	}
+	
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { return visitChildren(ctx);}

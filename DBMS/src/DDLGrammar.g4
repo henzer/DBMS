@@ -7,11 +7,16 @@ UNUM: DIGIT;
 NUM: UNUM(UNUM)* ;
 DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
 ID : LETTER (LETTER | DIGIT)* ;
+IDTABLE: LETTER (LETTER | DIGIT)*;
+
 COMMENTS: '//' ~('\r' | '\n' )*  -> channel(HIDDEN);
 WS: [ \t\r\n\f]+  -> channel(HIDDEN);
 
 CHAR: '\''~('\r'|'\n'|'\'')* '\'';
 
+//root:
+//	(statement)*
+//	;
 
 statement
 	: createDatabase 
@@ -175,7 +180,7 @@ dmlstatement
 	;
 
 insert
-	: 'INSERT' 'INTO' ID '(' ((ID)(','ID)*)? ')' 'VALUES' '('(literal)*')'
+	: 'INSERT' 'INTO' ID ( '(' ((ID)(','ID)*)? ')' )? 'VALUES' '('(literal (',' literal)* )?')'
 	;
 	
 update

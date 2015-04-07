@@ -965,9 +965,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");
 			
 		}
-		
-		
-		
+
 		String tabla = ctx.ID(0).getText();
 		
 		
@@ -1081,21 +1079,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			
 		}
 		
-		/*
-		for (int i=1; i<ctx.ID().size(); i++){
-			if(!relacion.containsKey(ctx.ID(i))){
-				return new Tipo("error", "ERROR.-El campo " + ctx.ID(i) + " no existe en la relacion " + tabla);
-			}
-			JSONObject campo = (JSONObject)relacion.get(ctx.ID(i));
-			if(ctx.literal().size()<=i-1){
-				return new Tipo("error", "ERROR.-No coincide el numero de valores a ingresar, con los campos mencionados");
-			}
-			Tipo t = visit(ctx.literal(i-1));
-			
-			
-		}
-		
-		*/
 	}
 	
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }

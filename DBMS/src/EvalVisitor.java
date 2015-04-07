@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import javax.swing.JOptionPane;
+
 import org.antlr.v4.runtime.misc.NotNull;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -82,18 +84,24 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return new Tipo("void","Table name changed succesfully");
 	}
 	
-	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) { 
-		try {
-			dropDatabase(ctx.ID().getText());
-			return new Tipo("void", "Database "+ctx.ID().getText()+" eliminated succesfully");
-		} catch (Exception e) {
-			e.printStackTrace();
-			return new Tipo("error", e.getMessage()); 
-		} 
+	@Override public Tipo visitDropDatabase(@NotNull DDLGrammarParser.DropDatabaseContext ctx) {  
+		String nombre = ctx.ID().getText();
+		int opc = JOptionPane.showConfirmDialog(null, "¿Esta seguro que desea eliminar: " + nombre + "?", "Eliminar", JOptionPane.YES_NO_OPTION);
+		if (opc==0){
+			try {
+				dropDatabase(nombre);
+				return new Tipo("void", "Ha sido eliminada correctamente.");
+			} catch (Exception e) {
+				e.printStackTrace();
+				return new Tipo("error", e.getMessage());
+			}
+		}else{
+			return new Tipo("void", "Operacion cancelada.");
+		}
 	}
 	
 	@Override public Tipo visitConstraintDecl3(@NotNull DDLGrammarParser.ConstraintDecl3Context ctx) { 
-		Tipo res=visit(ctx.expression());
+		Tipo res=  visit(ctx.expression());
 		if(res.getTipo().equals("error")){
 			return res;
 		}
@@ -162,7 +170,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitUniFactorNot(@NotNull DDLGrammarParser.UniFactorNotContext ctx) { 
-		Tipo res = visit(ctx.factor());
+		Tipo res =   visit(ctx.factor());
 		if(!res.getTipo().equals("BOOL")){
 			return new Tipo("error","Operator NOT requires BOOL expressions");
 		}
@@ -182,14 +190,15 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) { 
+	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) {
 		try {
-			alterDatabase(ctx.ID(0).getText(),ctx.ID(1).getText());
+			alterDatabase(ctx.ID(0).getText(), ctx.ID(1).getText());
 			return new Tipo("void", "Database name changed succesfully.");
 		} catch (Exception e) {
 			e.printStackTrace();
-			return new Tipo("error", e.getMessage()); 
-		} 	
+			return new Tipo("error", e.getMessage());
+		}
+
 	}
 	/**
 	 * {@inheritDoc}
@@ -267,13 +276,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { 
-		Tipo res1=visit(ctx.expr3());
+		Tipo res1=  visit(ctx.expr3());
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=visit(ctx.unifactor());
+		Tipo res2=  visit(ctx.unifactor());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
@@ -324,7 +333,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		newTable.put("name", owner);
 		JSONArray columns =new JSONArray();
 		for(int i=0;i<ctx.tipo().size();i++){
-			Tipo current=visit(ctx.tipo(i));
+			Tipo current=  visit(ctx.tipo(i));
 			JSONObject newColumn = new JSONObject();
 			newColumn.put("name", ctx.ID(i+1).getText());
 			newColumn.put("type",current.getTipo());
@@ -338,7 +347,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		newTable.put("columns", columns);
 		currentColumns=columns;
 		for(int i=0;i<ctx.constraintDecl().size();i++){
-			Tipo current=visit(ctx.constraintDecl(i));
+			Tipo current=  visit(ctx.constraintDecl(i));
 			if(current.getTipo().equals("error")){
 				return current;
 			}
@@ -407,7 +416,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		currentColumns=columns;
 		owner=ctx.ID().getText();
 		for(int i=0;i<ctx.accion().size();i++){
-			Tipo res=visit(ctx.accion(i));
+			Tipo res=  visit(ctx.accion(i));
 			if(res.getTipo().equals("error")){
 				return res;
 			}
@@ -519,13 +528,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitExpr21(@NotNull DDLGrammarParser.Expr21Context ctx) { 
-		Tipo res1=visit(ctx.expr2());
+		Tipo res1=  visit(ctx.expr2());
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=visit(ctx.expr3());
+		Tipo res2=  visit(ctx.expr3());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
@@ -688,13 +697,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitExpression1(@NotNull DDLGrammarParser.Expression1Context ctx) { 
-		Tipo res1=visit(ctx.expression());
+		Tipo res1=  visit(ctx.expression());
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=visit(ctx.expr1());
+		Tipo res2=  visit(ctx.expr1());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
@@ -719,7 +728,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				 return new Tipo("error","Column "+ctx.ID().getText()+" already exists");
 			 }
 		 }
-		 Tipo actual=visit(ctx.tipo());
+		 Tipo actual=  visit(ctx.tipo());
 		 JSONObject newColumn=new JSONObject();
 		 newColumn.put("name", ctx.ID().getText());
 		 newColumn.put("type", actual.getTipo());
@@ -728,7 +737,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		 }
 		 currentColumns.add(newColumn);
 		 for(int i=0;i<ctx.constraintDecl().size();i++){
-			 Tipo currentT=visit(ctx.constraintDecl(i));
+			 Tipo currentT=  visit(ctx.constraintDecl(i));
 			 if(currentT.getTipo().equals("error")){
 				 return currentT;
 			 }
@@ -833,13 +842,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitExpr11(@NotNull DDLGrammarParser.Expr11Context ctx) { 
-		Tipo res1=visit(ctx.expr1());
+		Tipo res1=  visit(ctx.expr1());
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=visit(ctx.expr2());
+		Tipo res2=  visit(ctx.expr2());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
@@ -894,7 +903,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return new Tipo("error","Column "+ctx.ID()+" does not exist in "+owner); 
 	}
 	
+	//Metodos para el DML*******************************************************************
+	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
 	
+	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { return visitChildren(ctx);}
 	
 
 	//Metodos para archivos********************************************************************************************************
@@ -1020,7 +1038,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						databases.remove(i);
 						JSONObject newO=new JSONObject();
 						newO.put("name", newname);
-						newO.put("length", actual.get("length"));
+						newO.put("length", Integer.parseInt(actual.get("length").toString()));
 						databases.add(newO);
 						break;
 					}
@@ -1278,13 +1296,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			obj = parser.parse(new FileReader(dir));
 			result = (JSONObject) obj;
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (ParseException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return result;

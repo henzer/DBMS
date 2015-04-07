@@ -27,6 +27,7 @@ import java.awt.Font;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreeModel;
 
 import java.awt.Component;
 import java.io.BufferedReader;
@@ -35,6 +36,7 @@ import java.io.FileReader;
 import java.io.IOException;
 
 import javax.swing.SwingConstants;
+
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 
@@ -42,6 +44,7 @@ import java.awt.event.ActionEvent;
 public class IDE extends JFrame {
 
 	private JPanel contentPane;
+	private JTree treeBD;
 	private ControladorDDL controlDDL;
 	
 	public IDE() {
@@ -92,6 +95,11 @@ public class IDE extends JFrame {
 					txtConsola.setText(mensaje);
 				}
 				
+				//Se modifica el arbol
+				FileNode f = new FileNode(System.getProperty("user.dir")+ "/databases/");
+				TreeModel model = new FileTreeModel(f);
+				treeBD.setModel(model);
+				
 			}
 		});
 		btnEjecutar.setIcon(new ImageIcon(IDE.class.getResource("/com/sun/javafx/webkit/prism/resources/mediaPlayDisabled.png")));
@@ -127,7 +135,11 @@ public class IDE extends JFrame {
 		JScrollPane scrollPane_3 = new JScrollPane();
 		panel.add(scrollPane_3, BorderLayout.CENTER);
 		
-		JTree treeBD = new JTree();
+		treeBD = new JTree();
+		FileNode f = new FileNode(System.getProperty("user.dir")+ "/databases/");
+		TreeModel model = new FileTreeModel(f);
+		treeBD.setModel(model);
+		
 		scrollPane_3.setViewportView(treeBD);
 	}
 	

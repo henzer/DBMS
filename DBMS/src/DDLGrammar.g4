@@ -24,6 +24,7 @@ statement
 	| dropTable
 	| showTables
 	| showColumnsFrom
+	| dmlstatement
 	;
 	
 createDatabase
@@ -163,4 +164,28 @@ factor
 	: literal					#factorLiteral
 	| '(' expression ')'		#factorExpression
 	| ID   						#factorID
+	;
+	
+
+dmlstatement
+	:	(insert)*				#dmlInsert
+	|	(update)*				#dmlUpdate
+	|	(delete)*				#dmlDelete
+	|	(select)*				#dmlSelect
+	;
+
+insert
+	: 'INSERT' 'INTO' ID '(' ((ID)(','ID)*)? ')' 'VALUES' '('(literal)*')'
+	;
+	
+update
+	: 'UPDATE' ID 'SET' ID '=' literal (','ID '=' literal)*
+	;
+
+delete
+	: 'DELETE' 'FROM' ID 'WHERE' expression
+	;
+
+select
+	: 'SELECT' ('*'|(ID)+) 'FROM' ID 'WHERE' ID ('ORDER' 'BY' ID ('ASC'|'DESC')(','ID ('ASC'|'DESC') )*)?
 	;

@@ -1,10 +1,11 @@
 import java.util.ArrayList;
 
-
-public class Tipo {
+import org.json.simple.JSONObject;
+public class Tipo{
 	private String tipo;
 	private int length;
 	private String mensaje;
+	private JSONObject relacion;
 	
 	private ArrayList<String> resultado;
 	
@@ -65,4 +66,15 @@ public class Tipo {
 	public ArrayList<String> getResultado(){
 		return resultado;
 	}
+
+	public JSONObject getRelacion() {
+		return relacion;
+	}
+
+	public void setRelacion(JSONObject relacion) {
+		this.relacion = relacion;
+	}
+	
+	
+	
 }

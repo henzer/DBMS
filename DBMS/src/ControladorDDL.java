@@ -30,7 +30,7 @@ public class ControladorDDL {
 		
 		//Revision Semantica
 		EvalVisitor visitador = new EvalVisitor();
-		Tipo t = visitador.visit(parser.statement());
+		Tipo t = (Tipo) visitador.visit(parser.statement());
 		parser.reset();
 		
 		return t.getMensaje();

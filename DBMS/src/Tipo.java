@@ -7,7 +7,6 @@ public class Tipo{
 	private String mensaje;
 	private JSONObject relacion;
 	
-	
 	private ArrayList<String> resultado;
 	
 	public Tipo(String tipo) {

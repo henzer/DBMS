@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import javax.swing.JOptionPane;
 
@@ -24,6 +25,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private String owner="";
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
+	private HashMap<String, JSONObject> memoria;
+	
+	
 	public EvalVisitor(){
 		if(!currentDatabase.equals("")){
 			System.out.println(currentDatabase);
@@ -38,6 +42,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			createFile(baseDir+databaseFileName,registro+"");
 		}
 		tablaTipos = new TablaTipos();
+		memoria = new HashMap<String, JSONObject>();
 		
 		//Se agregan los tipos de datos primitivos a la tabla de tipos.
 		tablaTipos.agregar("INT", 11);
@@ -904,12 +909,48 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	//Metodos para el DML*******************************************************************
-	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) {
+		memoria = new HashMap<String, JSONObject>();
+		
+		int contador = 0;
+		for(DDLGrammarParser.InsertContext insert : ctx.insert()){
+			Tipo t = visit(insert);
+			if (t.isError()) return t;
+		}
+		
+		for(String key: memoria.keySet()){
+			createFile(baseDir+currentDatabase+"/"+key+".json",memoria.get(key).toJSONString());
+		}
+		
+		return new Tipo("void", "Se ha insertado con éxito.");
+		
+	}
 	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
 	
-	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
+		String tabla = ctx.ID(0).getText();
+		//JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		//if(!checkTableName(newName,master)){
+		//	throw new Exception("Table name "+newName+" not available");
+		//}
+		
+		JSONObject relacion;
+		if(memoria.containsKey(tabla)){
+			relacion = memoria.get(tabla);
+		}else{
+			relacion=readJSON(baseDir+currentDatabase+"/"+tabla+".json");
+			memoria.put(tabla, relacion);
+		}
+		
+		
+		
+		
+		
+		
+		return visitChildren(ctx); 
+	}
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { return visitChildren(ctx);}

@@ -1168,9 +1168,25 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(!foundT){
 			throw new Exception("Database "+references+" not found");
 		}
-		//ver que no exista nombre de constraint repetido
+		//revisar que existan las columnas en la tabla
 		if(fromC.size()!=toC.size()){
 			throw new Exception("Size of fields do not match ");
+		}
+		for(int i=0;i<fromC.size();i++){
+			boolean found=false;
+			for(int j=0;j<columnas.size();j++){
+				JSONObject currentC=(JSONObject)columnas.get(i);
+				if(fromC.get(j).equals((String)currentC.get("name"))){
+					found=true;
+				}
+			}
+			if(!found){
+				throw new Exception("Table "+owner+" does not have column "+fromC.get(i));
+			}
+		}
+		//ver que no exista nombre de constraint repetido y que existe una primary key a la cual hacer referencia
+		if(constraints.size()==0){
+			throw new Exception("Table "+references+" has no primary key ");
 		}
 		for(int i=0;i<constraints.size();i++){
 			JSONObject currentC=(JSONObject)constraints.get(i);
@@ -1180,7 +1196,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			else{
 				//la constraint debe ser foreign key
 				JSONObject currentFK=(JSONObject)currentC.get("foreignKey");
-				if(currentFK!=null){
+				if(currentFK!=null&&(owner.equals((String)currentC.get("owner")))){
 					JSONArray columnsD =(JSONArray)currentFK.get("columns");
 					//revisar que cada columna solo haga regerencia a otra columna, no a varias
 					for (int j=0;i<fromC.size();j++){

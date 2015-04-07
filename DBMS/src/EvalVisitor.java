@@ -1175,8 +1175,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		for(int i=0;i<fromC.size();i++){
 			boolean found=false;
 			for(int j=0;j<columnas.size();j++){
-				JSONObject currentC=(JSONObject)columnas.get(i);
-				if(fromC.get(j).equals((String)currentC.get("name"))){
+				JSONObject currentC=(JSONObject)columnas.get(j);
+				if(fromC.get(i).equals((String)currentC.get("name"))){
 					found=true;
 				}
 			}

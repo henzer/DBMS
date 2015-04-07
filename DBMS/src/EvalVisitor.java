@@ -1016,6 +1016,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}
 			
+			
 			for(int i=0; i<ctx.literal().size(); i++){
 				String nameCol = ((JSONObject)columns.get(i)).get("name").toString();
 				JSONObject columna = (JSONObject) relacion.get(nameCol);

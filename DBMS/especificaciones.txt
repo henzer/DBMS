@@ -40,7 +40,8 @@ databases.json
 	"databases": [{"name":nombrebasededatos,"length":longitudbasededatos},{...}...]
 }
 master.json
+	"tables":[{"name":nombretabla,"columns":[{"name":nombrecolumna,"type":tipocolumna}]}]
 {
-	"tables":[{"name":nombretabla,"columns":[{"name":nombrecolumna,"type":tipocolumna}],"constraints":[{"name":nombreconstraint,"primaryKey":{[nombrecolumna,...]},"foreignKey":{"columns":[nombrecolumna,...],"table":nombretabla,"references":[nombrecolumna,...]},"check":expr}]}]
-	
+	"constraints":[{"owner":nombreowner,"name":nombreconstraint,"primaryKey":{[nombrecolumna,...]},"foreignKey":{"columns":[nombrecolumna,...],"table":nombretabla,"references":[nombrecolumna,...]},"check":[]}]
 }
+tabla.json

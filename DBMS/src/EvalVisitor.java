@@ -24,6 +24,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private String owner="";
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
+	private JSONObject currentDataFile=null;
 	public EvalVisitor(){
 		if(!currentDatabase.equals("")){
 			System.out.println(currentDatabase);
@@ -326,22 +327,28 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		owner=ctx.ID(0).getText();
 		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
 		currentConstraints=(JSONArray)master.get("constraints");
+		
 		if(!checkTableName(owner,master)){
 			return new Tipo("error","Table name "+owner+" not available in "+currentDatabase);
 		}
 		JSONObject newTable =new JSONObject();
 		newTable.put("name", owner);
 		JSONArray columns =new JSONArray();
+		JSONObject dataFile=new JSONObject();
 		for(int i=0;i<ctx.tipo().size();i++){
+			JSONObject nuevo=new JSONObject();
+			dataFile.put(ctx.ID(i+1), nuevo);
 			Tipo current=  visit(ctx.tipo(i));
+			nuevo.put("type", current.getTipo());
 			JSONObject newColumn = new JSONObject();
 			newColumn.put("name", ctx.ID(i+1).getText());
 			newColumn.put("type",current.getTipo());
 			if(current.getTipo().equals("CHAR")){
 				newColumn.put("length", current.getLength());
+				nuevo.put("length", current.getLength());
 			}
+			nuevo.put("entries", new JSONArray());
 			columns.add(newColumn);
-			
 		}
 		System.out.println(columns);
 		newTable.put("columns", columns);
@@ -372,10 +379,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONArray tables = (JSONArray) master.get("tables");
 		tables.add(newTable);
 		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		JSONObject dataFile=new JSONObject();
-		JSONArray entries=new JSONArray();
-		dataFile.put("registros",entries);
-		createFile(baseDir+currentDatabase+"/"+owner+".json",master+"");
+		createFile(baseDir+currentDatabase+"/"+owner+".json",dataFile+"");
 		return new Tipo("void","Table "+owner+" created succesfully in "+currentDatabase);
 	}
 	/**
@@ -415,6 +419,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		currentColumns=columns;
 		owner=ctx.ID().getText();
+		currentDataFile=readJSON(baseDir+currentDatabase+"/"+owner+".json");
 		for(int i=0;i<ctx.accion().size();i++){
 			Tipo res=  visit(ctx.accion(i));
 			if(res.getTipo().equals("error")){
@@ -422,6 +427,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//escribir master.json
+		createFile(baseDir+currentDatabase+"/"+owner+".json",currentDataFile+"");
 		createFile(baseDir+currentDatabase+"/master.json",master+"");
 		return new Tipo("void","Changes to "+owner+" in "+currentDatabase+" done succesfully");
 	}
@@ -722,26 +728,41 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitAccion1(@NotNull DDLGrammarParser.Accion1Context ctx) { 
 		//revisar que la columna a ingresar no tenga nombre repetido
+		String name="";
 		 for(int i=0;i<currentColumns.size();i++){
 			 JSONObject currentC=(JSONObject)currentColumns.get(i);
-			 if(ctx.ID().getText().equals((String)currentC.get("name"))){
+			 name=(String)currentC.get("name");
+			 if(ctx.ID().getText().equals(name)){
 				 return new Tipo("error","Column "+ctx.ID().getText()+" already exists");
 			 }
+			 
 		 }
+		 JSONObject column=(JSONObject)currentDataFile.get(name);
+		 JSONArray elements=(JSONArray)column.get("entries");
+		 JSONObject nColumn=new JSONObject();
+		 JSONArray nEntries=new JSONArray();
+		 for(int i=0;i<elements.size();i++){
+			 nEntries.add(null);
+		 }
+		 nColumn.put("entries", nEntries);
 		 Tipo actual=  visit(ctx.tipo());
 		 JSONObject newColumn=new JSONObject();
 		 newColumn.put("name", ctx.ID().getText());
 		 newColumn.put("type", actual.getTipo());
+		 nColumn.put("type", actual.getTipo());
 		 if(actual.getTipo().equals("CHAR")){
 			 newColumn.put("length", actual.getLength());
+			 nColumn.put("length", actual.getLength());
 		 }
-		 currentColumns.add(newColumn);
+		 
 		 for(int i=0;i<ctx.constraintDecl().size();i++){
 			 Tipo currentT=  visit(ctx.constraintDecl(i));
 			 if(currentT.getTipo().equals("error")){
 				 return currentT;
 			 }
 		 }
+		 currentColumns.add(newColumn);
+
 		 return new Tipo("void");
 	}
 	/**
@@ -833,6 +854,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		//eliminacion de campos de los registros de la tabla correspondiente
 		currentColumns.remove(index);
+		currentDataFile.remove(ctx.ID().getText());
 		return new Tipo("void","Column "+ctx.ID().getText()+" dropped succesfully");		
 	}
 	/**

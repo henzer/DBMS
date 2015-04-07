@@ -105,7 +105,7 @@ literal
 	;
 	
 int_literal
-	:	(NUM|UNUM)				
+	:	('-')?(NUM|UNUM)				
 	;
 
 char_literal
@@ -113,7 +113,7 @@ char_literal
 	;
 	
 float_literal
-	:	NUM '.' NUM
+	:	('-')?NUM '.' NUM
 	;
 	
 date_literal

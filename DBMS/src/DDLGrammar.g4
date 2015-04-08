@@ -6,8 +6,9 @@ fragment DIGIT: '0'..'9' ;
 UNUM: DIGIT;
 NUM: UNUM(UNUM)* ;
 DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
+FLOAT: NUM '.' NUM;
+
 ID : LETTER (LETTER | DIGIT)* ;
-IDTABLE: LETTER (LETTER | DIGIT)*;
 
 COMMENTS: '//' ~('\r' | '\n' )*  -> channel(HIDDEN);
 WS: [ \t\r\n\f]+  -> channel(HIDDEN);
@@ -113,7 +114,7 @@ char_literal
 	;
 	
 float_literal
-	:	NUM '.' NUM
+	:	FLOAT
 	;
 	
 date_literal

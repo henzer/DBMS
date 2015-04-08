@@ -25,8 +25,8 @@ public class ControladorDDL {
 		parser = new DDLGrammarParser(tokens);
 		
 		//Revision Lexica y Sintactica
-		parser.statement();
-		parser.reset();
+		//parser.statement();
+		//parser.reset();
 		
 		//Revision Semantica
 		EvalVisitor visitador = new EvalVisitor();

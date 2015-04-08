@@ -106,7 +106,7 @@ literal
 	;
 	
 int_literal
-	:	(NUM|UNUM)				
+	:	('-')?(NUM|UNUM)				
 	;
 
 char_literal
@@ -114,7 +114,11 @@ char_literal
 	;
 	
 float_literal
+<<<<<<< HEAD
 	:	FLOAT
+=======
+	:	('-')?NUM '.' NUM
+>>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 	;
 	
 date_literal

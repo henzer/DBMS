@@ -23,9 +23,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private String baseDir="databases/";
 	private String databaseFileName="databases.json";
 	private TablaTipos tablaTipos;
-	private static String currentDatabase="";
 	private static JSONObject currentDataBase;
-	
+	private static String databaseName;
 	private String owner="";
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
@@ -35,9 +34,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	
 	public EvalVisitor(){
-		if(!currentDatabase.equals("")){
-			System.out.println(currentDatabase);
-		}
+		
 		File filep = new File(baseDir+databaseFileName);
 		 
 		// if file doesnt exists, then create it
@@ -60,12 +57,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { 
 		//verificar la base de datos actual
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database Selected");
 		}
 		//verificar la existencia de la tabla
-		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
-		JSONArray tables=(JSONArray)master.get("tables");
+		JSONArray tables=(JSONArray)currentDataBase.get("tables");
 		int index=-1;
 		int length=-1;
 		for(int i=0;i<tables.size();i++){
@@ -77,10 +73,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		if(index==-1){
-			return new Tipo("error","Table "+ctx.ID(0).getText()+" does not exist in "+currentDatabase);
+			return new Tipo("error","Table "+ctx.ID(0).getText()+" does not exist in "+databaseName);
 		}
 		//verificar la disponibilidad del nombre
-		if(!checkTableName(ctx.ID(1).getText(),master)){
+		if(!checkTableName(ctx.ID(1).getText(),currentDataBase)){
 			return new Tipo("error","Name "+ctx.ID(1).getText()+" is not available");
 		}
 		//escribir los archivos y realizar los cambios de nombre
@@ -90,8 +86,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		newTable.put("length",length );
 		tables.remove(index);
 		tables.add(newTable);
-		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		changeDirectoryName(currentDatabase+"/"+ctx.ID(0).getText()+".json",ctx.ID(1).getText());
+		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
+		changeDirectoryName(databaseName+"/"+ctx.ID(0).getText()+".json",ctx.ID(1).getText());
 		return new Tipo("void","Table name changed succesfully");
 	}
 	
@@ -132,12 +128,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitShowTables(@NotNull DDLGrammarParser.ShowTablesContext ctx) { 
 		//verificar la base de datos actual
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database Selected");
 		}
-		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
 		String res="";
-		JSONArray tables=(JSONArray)master.get("tables");
+		JSONArray tables=(JSONArray)currentDataBase.get("tables");
 		for(int i=0;i<tables.size();i++){
 			JSONObject currentT=(JSONObject)tables.get(i);
 			res+=(String)currentT.get("name")+"\n";
@@ -235,7 +230,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		try {
 			useDatabase(ctx.ID().getText());
 			//Se carga la metadata de la base de datos que se está utilizando.
-			currentDataBase = readJSON(baseDir+currentDatabase+"/master.json");
+			currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 			
 			return new Tipo("void", "Using database "+ctx.ID().getText());
 		} catch (Exception e) {
@@ -334,15 +329,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { 
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
 		owner=ctx.ID(0).getText();
-		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
-		currentConstraints=(JSONArray)master.get("constraints");
-		
-		if(!checkTableName(owner,master)){
-			return new Tipo("error","Table name "+owner+" not available in "+currentDatabase);
+		currentConstraints=(JSONArray)currentDataBase.get("constraints");
+		if(!checkTableName(owner,currentDataBase)){
+			return new Tipo("error","Table name "+owner+" not available in "+databaseName);
 		}
 		JSONObject newTable =new JSONObject();
 		newTable.put("name", owner);
@@ -377,11 +370,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONArray databases= (JSONArray)content.get("databases");
 		for(int i=0;i<databases.size();i++){
 			JSONObject current = (JSONObject)databases.get(i);
-			if(currentDatabase.equals((String)current.get("name"))){
+			if(databaseName.equals((String)current.get("name"))){
 				int conttables=(int)(long)(current.get("length"))+1;
 				databases.remove(i);
 				JSONObject newdata=new JSONObject();
-				newdata.put("name", currentDatabase);
+				newdata.put("name", databaseName);
 				newdata.put("length", conttables);
 				databases.add(newdata);
 				createFile(baseDir+databaseFileName,content+"");
@@ -389,11 +382,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//creacion y alteracion de archivos
-		JSONArray tables = (JSONArray) master.get("tables");
+		JSONArray tables = (JSONArray) currentDataBase.get("tables");
 		tables.add(newTable);
-		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		createFile(baseDir+currentDatabase+"/"+owner+".json",dataFile+"");
-		return new Tipo("void","Table "+owner+" created succesfully in "+currentDatabase);
+		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
+		createFile(baseDir+databaseName+"/"+owner+".json",dataFile+"");
+		return new Tipo("void","Table "+owner+" created succesfully in "+databaseName);
 	}
 	/**
 	 * {@inheritDoc}
@@ -412,14 +405,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { 
 		//revisar que se haya seleccionado una base de datos
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
 		//inicializacion
-		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
-		currentConstraints=(JSONArray)master.get("constraints");
+		currentConstraints=(JSONArray)currentDataBase.get("constraints");
 		//obtener columnas y verificacion de la existencia de la tabla
-		JSONArray tables = (JSONArray)master.get("tables");
+		JSONArray tables = (JSONArray)currentDataBase.get("tables");
 		JSONArray columns=null;
 		for(int i=0;i<tables.size();i++){
 			JSONObject currentC= (JSONObject)tables.get(i);
@@ -428,11 +420,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		if(columns==null){
-			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+databaseName);
 		}
 		currentColumns=columns;
 		owner=ctx.ID().getText();
-		currentDataFile=readJSON(baseDir+currentDatabase+"/"+owner+".json");
+		currentDataFile=readJSON(baseDir+databaseName+"/"+owner+".json");
 		for(int i=0;i<ctx.accion().size();i++){
 			Tipo res=  visit(ctx.accion(i));
 			if(res.getTipo().equals("error")){
@@ -440,9 +432,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//escribir master.json
-		createFile(baseDir+currentDatabase+"/"+owner+".json",currentDataFile+"");
-		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		return new Tipo("void","Changes to "+owner+" in "+currentDatabase+" done succesfully");
+		createFile(baseDir+databaseName+"/"+owner+".json",currentDataFile+"");
+		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
+		return new Tipo("void","Changes to "+owner+" in "+databaseName+" done succesfully");
 	}
 	/**
 	 * {@inheritDoc}
@@ -459,13 +451,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitShowColumnsFrom(@NotNull DDLGrammarParser.ShowColumnsFromContext ctx) { 
 		//verificar la base de datos actual
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database Selected");
 		}
 		//verificar la existencia de la tabla
-		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
-		JSONArray tables=(JSONArray)master.get("tables");
-		JSONArray constraints=(JSONArray)master.get("constraints");
+		JSONArray tables=(JSONArray)currentDataBase.get("tables");
+		JSONArray constraints=(JSONArray)currentDataBase.get("constraints");
 		JSONArray columns=null;
 		String columnas="";
 		String constr="";
@@ -476,7 +467,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		if(columns==null){
-			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+databaseName);
 		}
 		//escribir columnas
 		for(int i=0;i<columns.size();i++){
@@ -572,13 +563,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { 
 		//revisar si se ha seleccionado una base de datos
-		if(currentDatabase.equals("")){
+		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
 		//revisar si existe la tabla
-		JSONObject  master=readJSON(baseDir+currentDatabase+"/master.json");
-		JSONArray tables = (JSONArray)master.get("tables");
-		JSONArray constraints=(JSONArray)master.get("constraints");
+		JSONArray tables = (JSONArray)currentDataBase.get("tables");
+		JSONArray constraints=(JSONArray)currentDataBase.get("constraints");
 		int index=-1;
 		for(int i=0;i<tables.size();i++){
 			JSONObject currentC=(JSONObject)tables.get(i);
@@ -587,7 +577,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		if(index==-1){
-			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+			return new Tipo("error","Table "+ctx.ID().getText()+" does not exist in "+databaseName);
 		}
 		//revisar que la tabla no sea referenciada
 		for(int i=0;i<constraints.size();i++){
@@ -608,8 +598,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//escribir el archivo master.json y borrar el archivo de la tabla
-		createFile(baseDir+currentDatabase+"/master.json",master+"");
-		eraseDirectory(baseDir+currentDatabase+"/"+ctx.ID().getText()+".json");
+		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
+		eraseDirectory(baseDir+databaseName+"/"+ctx.ID().getText()+".json");
 		return new Tipo("void","Table "+ctx.ID().getText()+" dropped succesfully");
 	}
 	/**
@@ -819,7 +809,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		if(index==-1){
-			return new Tipo("error","Column "+ctx.ID().getText()+" does not exist in "+currentDatabase);
+			return new Tipo("error","Column "+ctx.ID().getText()+" does not exist in "+databaseName);
 		}
 		//revisar que no sea mencionado en constraints
 		for(int i=0;i<currentConstraints.size();i++){
@@ -951,7 +941,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		
 		for(String key: memoria.keySet()){
-			createFile(baseDir+currentDatabase+"/"+key+".json",memoria.get(key).toJSONString());
+			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
 		
 		return new Tipo("void", "Se ha insertado "+ contador+" registros con éxito.");
@@ -1005,7 +995,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(memoria.containsKey(tabla)){
 			relacion = memoria.get(tabla);
 		}else{
-			relacion=readJSON(baseDir+currentDatabase+"/"+tabla+".json");
+			relacion=readJSON(baseDir+databaseName+"/"+tabla+".json");
 			memoria.put(tabla, relacion);
 		}
 		
@@ -1272,7 +1262,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		for(int i=0;i<databases.size();i++){
 			JSONObject actual=(JSONObject)databases.get(i);
 			if(nombre.equals((String)actual.get("name"))){
-				currentDatabase=nombre;
+				databaseName=nombre;
 				return;
 			}
 			
@@ -1330,7 +1320,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	//agrega una foreign key antes de llamar a este metodo es necesario verificar la existencia de la tabla owner(si no es una tabla nueva)
 	public JSONArray addForeignKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> fromC,String references,ArrayList<String> toC)throws Exception{
 		//revisar que exista la tabla a la que se le hace referencia
-		JSONArray tables=(JSONArray)readJSON(baseDir+currentDatabase+"/master.json").get("tables");
+		JSONArray tables=(JSONArray)readJSON(baseDir+databaseName+"/master.json").get("tables");
 		boolean foundT=false;
 		for(int i=0;i<tables.size();i++){
 			JSONObject current=(JSONObject)tables.get(i);
@@ -1434,7 +1424,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	//renombra la tabla de nombre name en la base de datos currentDatabase
 	public void renameTable(String name,String newName)throws Exception{
-		JSONObject master=readJSON(baseDir+currentDatabase+"/master.json");
+		JSONObject master=readJSON(baseDir+databaseName+"/master.json");
 		if(!checkTableName(newName,master)){
 			throw new Exception("Table name "+newName+" not available");
 		}

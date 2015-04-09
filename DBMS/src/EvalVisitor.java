@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Stack;
@@ -1101,10 +1102,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
-		Tipo t1 = visit(ctx.from());
-		if(t1.isError())return t1;
-		
-		
+		//Tipo t1 = visit(ctx.from());
+		//if(t1.isError())return t1;
 		return visitChildren(ctx);
 	
 	}
@@ -1664,6 +1663,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 
 	public boolean calcularWhere(ArrayList<String> input){
+		JSONArray a = new JSONArray();
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);

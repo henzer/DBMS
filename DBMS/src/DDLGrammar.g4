@@ -170,7 +170,7 @@ unifactor
 factor 							
 	: literal					#factorLiteral
 	| '(' expression ')'		#factorExpression
-	| ID   						#factorID
+	| (ID|TABLEID)   			#factorID
 	| NULL						#factorNull
 	;
 	

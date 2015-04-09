@@ -1054,28 +1054,31 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		for(int i=0; i<restricciones.size(); i++){
 			JSONObject constr = (JSONObject) restricciones.get(i);
-			if(constr.containsKey("primaryKey")){
-				JSONArray pk = (JSONArray) constr.get("primaryKey");
-				if(!checkPrimaryKey(pk, nueva, relacion))
-					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
-			}else if(constr.containsKey("foreignKey")){
-				JSONObject fkObj = (JSONObject)constr.get("foreignKey");
-				JSONArray fkLocal = (JSONArray)fkObj.get("columns");
-				JSONArray fkRef = (JSONArray)fkObj.get("references");
-				String tableRef = fkObj.get("table").toString();
+			if(constr.get("owner").toString().equals(tabla)){
 				
-				JSONObject relacionRef;
-				if(memoria.containsKey(tableRef)){
-					relacionRef = memoria.get(tableRef);
+				if(constr.containsKey("primaryKey")){
+					JSONArray pk = (JSONArray) constr.get("primaryKey");
+					if(!checkPrimaryKey(pk, nueva, relacion))
+						return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
+				}else if(constr.containsKey("foreignKey")){
+					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
+					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
+					JSONArray fkRef = (JSONArray)fkObj.get("references");
+					String tableRef = fkObj.get("table").toString();
+					
+					JSONObject relacionRef;
+					if(memoria.containsKey(tableRef)){
+						relacionRef = memoria.get(tableRef);
+					}else{
+						relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
+						memoriaRef.put(tableRef, relacionRef);
+					}
+					if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
+						return new Tipo("error", "ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
+					
 				}else{
-					relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
-					memoriaRef.put(tableRef, relacionRef);
+					
 				}
-				if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
-					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
-				
-			}else{
-				
 			}
 		}
 

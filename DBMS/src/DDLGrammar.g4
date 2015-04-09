@@ -4,7 +4,7 @@ fragment LETTER: ( 'a'..'z' | 'A'..'Z') ;
 fragment DIGIT: '0'..'9' ;
 
 UNUM: DIGIT;
-NUM: ('-')?  UNUM(UNUM)*;
+NUM: ('-')? UNUM(UNUM)*;
 DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
 FLOAT:  NUM '.' (UNUM)*;
 

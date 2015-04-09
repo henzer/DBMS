@@ -3,10 +3,10 @@ grammar DDLGrammar;
 fragment LETTER: ( 'a'..'z' | 'A'..'Z') ;
 fragment DIGIT: '0'..'9' ;
 
-UNUM: DIGIT;
-NUM: ('-')?  UNUM(UNUM)*;
-DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
-FLOAT:  NUM '.' (UNUM)*;
+
+NUM: ('-')?  DIGIT(DIGIT)*;
+DATE: DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT;
+FLOAT:  NUM '.' (DIGIT)*;
 
 ID : LETTER (LETTER | DIGIT)* ;
 
@@ -94,7 +94,7 @@ constraintDecl
 tipo
 	: 'INT'					#tipoInt
 	| 'FLOAT'				#tipoFloat
-	| 'CHAR' '(' (NUM|UNUM) ')'	#tipoChar
+	| 'CHAR' '(' (NUM) ')'	#tipoChar
 	| 'DATE' 				#tipoDate
 	;
 

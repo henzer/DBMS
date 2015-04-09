@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Stack;
 
 import javax.swing.JOptionPane;
 
@@ -775,12 +776,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitTipoChar(@NotNull DDLGrammarParser.TipoCharContext ctx) { 
 		Tipo res = new Tipo("CHAR");
-		if(ctx.NUM()!=null){
-			res.setLength(Integer.parseInt(ctx.NUM().getText()));
-		}
-		else{
-			res.setLength(Integer.parseInt(ctx.UNUM().getText()));
-		}
+		res.setLength(Integer.parseInt(ctx.NUM().getText()));
 		return res;
 	}
 	/**
@@ -847,6 +843,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		//eliminacion de campos de los registros de la tabla correspondiente
 		currentColumns.remove(index);
+		JSONArray entries=(JSONArray)currentDataFile.get("entries");
+		for(int i=0;i<entries.size();i++){
+			JSONObject current=(JSONObject)entries.get(i);
+			current.remove(ctx.ID().getText());
+		}
 		return new Tipo("void","Column "+ctx.ID().getText()+" dropped succesfully");		
 	}
 	/**
@@ -1295,11 +1296,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	public JSONArray addForeignKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> fromC,String references,ArrayList<String> toC)throws Exception{
 		//revisar que exista la tabla a la que se le hace referencia
 		JSONArray tables=(JSONArray)readJSON(baseDir+databaseName+"/master.json").get("tables");
+		JSONArray referencedTable=null;
 		boolean foundT=false;
 		for(int i=0;i<tables.size();i++){
 			JSONObject current=(JSONObject)tables.get(i);
 			if(references.equals((String)current.get("name"))){
 				foundT=true;
+				referencedTable=(JSONArray)current.get("columns");
 				break;
 			}
 		}
@@ -1352,7 +1355,44 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}
 		}
-		
+		//revisar que sean del mismo tipo las columnas
+		for(int i=0;i<fromC.size();i++){
+			Tipo tipof=null;
+			//encontrar el tipo del elemento i de from c
+			for(int j=0;j<columnas.size();j++){
+				JSONObject current=(JSONObject)columnas.get(j);
+				String actual =(String)current.get("name");
+				if(fromC.get(i).equals(actual)){
+					tipof=new Tipo((String)current.get("type"));
+					if(tipof.getTipo().equals("CHAR")){
+						tipof.setLength((int)(long)current.get("length"));
+					}
+				}
+			}
+			
+			Tipo tipot=null;
+			//encontrar el tipo del elemento i de to c
+			for(int j=0;j<referencedTable.size();j++){
+				JSONObject current=(JSONObject)referencedTable.get(j);
+				String actual =(String)current.get("name");
+				if(toC.get(i).equals(actual)){
+					tipot=new Tipo((String)current.get("type"));
+					if(tipot.getTipo().equals("CHAR")){
+						tipot.setLength((int)(long)current.get("length"));
+					}
+				}
+			}
+			if(!tipof.getTipo().equals(tipot.getTipo())){
+				throw new Exception("Column "+fromC.get(i)+" and colummn "+toC.get(i)+" do not have the same type");
+			}
+			else{
+				if(tipof.getTipo().equals("CHAR")){
+					if(tipof.getLength()!=tipot.getLength()){
+						throw new Exception("Column "+fromC.get(i)+" and colummn "+toC.get(i)+" do not have the same type");
+					}
+				}
+			}
+		}
 		//creacion de la constraint
 		JSONObject nuevo = new JSONObject();
 		nuevo.put("owner", owner);
@@ -1516,6 +1556,42 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		return true;
 		
+	}
+	
+	public boolean calcular (ArrayList<String> input){
+		Stack<String> temp=new Stack<String>();
+		for(int i=0;i<input.size();i++){
+			String actual = input.get(i);
+			//revisar si es operador
+			//operador and
+			if(actual.equals("AND")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				if(var1.equals("true")&&var2.equals("true")){
+					temp.push("true");
+				}
+				temp.push("false");
+			}
+			//operador or
+			else if(actual.equals("OR")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				if(var1.equals("true")||var2.equals("true")){
+					temp.push("true");
+				}
+				temp.push("false");
+			}
+			else if(actual.equals("NOT")){
+				String var=temp.pop();
+				if(var.equals("true")){
+					temp.push("false");
+				}
+				else if(var.equals("false")){
+					temp.push("true");
+				}
+			}
+		}
+		return true;
 	}
 
 }

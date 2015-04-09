@@ -6,8 +6,8 @@ public class Tipo{
 	private int length;
 	private String mensaje;
 	private JSONObject relacion;
-	
 	private ArrayList<String> resultado;
+	
 	
 	public Tipo(String tipo) {
 		super();

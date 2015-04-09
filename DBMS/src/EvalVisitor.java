@@ -1101,7 +1101,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
-	
+		Tipo t1 = visit(ctx.from());
+		if(t1.isError())return t1;
+		
+		
 		return visitChildren(ctx);
 	
 	}
@@ -1580,6 +1583,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		return null;
 	}
+	
 	
 	public boolean checkPrimaryKey(JSONArray pk, JSONObject values, JSONObject table){
 		JSONArray entries = (JSONArray)table.get("entries");

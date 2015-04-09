@@ -4,9 +4,9 @@ fragment LETTER: ( 'a'..'z' | 'A'..'Z') ;
 fragment DIGIT: '0'..'9' ;
 
 UNUM: DIGIT;
-NUM: UNUM(UNUM)* ;
+NUM: ('-')?  UNUM(UNUM)*;
 DATE: UNUM UNUM UNUM UNUM '-' UNUM UNUM '-' UNUM UNUM;
-FLOAT: NUM '.' NUM;
+FLOAT:  NUM '.' (UNUM)*;
 
 ID : LETTER (LETTER | DIGIT)* ;
 
@@ -106,7 +106,7 @@ literal
 	;
 	
 int_literal
-	:	('-')?(NUM|UNUM)				
+	:	NUM				
 	;
 
 char_literal
@@ -114,11 +114,7 @@ char_literal
 	;
 	
 float_literal
-<<<<<<< HEAD
 	:	FLOAT
-=======
-	:	('-')?NUM '.' NUM
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 	;
 	
 date_literal

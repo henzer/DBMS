@@ -959,7 +959,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		
 		for(String key: memoria.keySet()){
-			createFile(baseDir+currentDatabase+"/"+key+".json",memoria.get(key).toJSONString());
+			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
 		
 		return new Tipo("void", "Se han eliminado "+ contador+" registros con éxito.");
@@ -972,20 +972,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
 
-		System.out.println("hola2");
 		String tabla = ctx.ID(0).getText();
 		
 		//Verfica que exista la tabla en la base de datos actual.
-		JSONArray tablas = (JSONArray) currentDataBase.get("tables");
-		JSONObject currentTable=null;
-		boolean encontrado = false;
-		for(int i = 0; i<tablas.size(); i++){
-			JSONObject current = (JSONObject) tablas.get(i);
-			if(tabla.equals(current.get("name").toString())){
-				currentTable = current;
-				break;
-			}
-		}
+		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
 			return new Tipo("error", "ERROR.-Table name "+tabla+" not available");
 		}
@@ -999,16 +989,19 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			memoria.put(tabla, relacion);
 		}
 		
-		//Se verifican las restricciones.
-		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		
-		//Caso cuando no se especifican campos
-		if(ctx.ID().size()==1){
-			JSONArray columns = (JSONArray) currentTable.get("columns");
+		JSONArray columns = (JSONArray) currentTable.get("columns");
+		//Se crea el array a insertar
+		JSONObject nueva = new JSONObject(); 
+		
+		
+		int idSize = ctx.ID().size()-1;
+
+		
+		if(idSize==0){
 			if(columns.size()!=ctx.literal().size()){
 				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas de la tabla " + tabla);
 			}
-			
 			int limite = ctx.literal().size();
 			for(int i=0; i<limite; i++){
 				String value = ctx.literal(i).getText();
@@ -1026,73 +1019,65 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + ((JSONObject)columns.get(i)).get("name").toString() + "(" + length +")");
 					}
 				}
-				
-				String nameCol = ((JSONObject)columns.get(i)).get("name").toString();
-				JSONObject columna = (JSONObject) relacion.get(nameCol);
-				JSONArray entries = (JSONArray)columna.get("entries");
-
-				entries.add(value);
+				nueva.put(((JSONObject)columns.get(i)).get("name"), value);
 			}
 			
-
-			return new Tipo("void", "Se ha insertado con éxito.");
 		}else{
-			JSONArray columns = (JSONArray) currentTable.get("columns");
-			JSONArray columnsInsert = new JSONArray();
-			
-			int c = 0;
-			for(TerminalNode idCol: ctx.ID()){
-				if(c!=0)
-					columnsInsert.add(idCol.getText());
-				c++;
-			}
-			
-			
-			if((ctx.ID().size()-1)!=ctx.literal().size()){
+			if(idSize!=ctx.literal().size()){
 				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas especificadas en la tabla " + tabla);
 			}
-			
-			int limite = ctx.literal().size();
-			for(int i=0; i<limite); i++){
+			int lim1 = columns.size();
+			for(int i=0; i<lim1; i++){
+				nueva.put(((JSONObject)columns.get(i)).get("name"), null);
+			}
+
+			for(int i=0; i<idSize; i++){
 				String idCol = ctx.ID(i+1).getText();
-				if(!relacion.containsKey(idCol)){
+				String value = ctx.literal(i).getText();
+				JSONObject column = getColumn(columns, idCol);
+				
+				if(column==null){
 					return new Tipo("error", "ERROR.-No existe la columna " + idCol + " en la tabla " + tabla);
 				}
 				
-				JSONObject columna = (JSONObject) relacion.get(idCol);
-				String t1 = columna.get("type").toString();
+				String t1 = column.get("type").toString();
 				Tipo t2 = visit(ctx.literal(i));
+				if(t2.isError())return t2;
+				
 				
 				if(!t1.equals(t2.getTipo())){
 					return new Tipo("error", "ERROR.-No coincide el tipo de la columna " + idCol + " con el tipo ingresado.");
 				}else if (t1.equals("CHAR")){
-					int length = Integer.parseInt(columna.get("length").toString());
+					int length = Integer.parseInt(column.get("length").toString());
 					if(length<t2.getLength()){
-						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + ((JSONObject)columns.get(i)).get("name").toString() + "(" + length +")");
+						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + idCol + "(" + length +")");
 					}
 				}
-				
-				
+				nueva.put(idCol, value);
 			}
-			
-			int colSize = columns.size();
-			for(int i=0; i<colSize; i++){
-				String nameCol = ((JSONObject)columns.get(i)).get("name").toString();
-				JSONArray entries = (JSONArray)((JSONObject) relacion.get(nameCol)).get("entries");
-				
-				if(columnsInsert.contains(nameCol)){
-					int indice = columnsInsert.indexOf(nameCol); 
-					entries.add(ctx.literal(indice).getText());
-				}else{
-					entries.add(null);
-				}
-				//Aquí voy
-			}
-			return new Tipo("void", "Se ha insertado con éxito.");
-			
-			
-			
+
 		}
+		
+		//CHEQUEA PRIMARY KEY
+		//Se verifican las restricciones.
+		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
+		for(int i=0; i<restricciones.size(); i++){
+			JSONObject constr = (JSONObject) restricciones.get(i);
+			if(constr.containsKey("primaryKey")){
+				JSONArray pk = (JSONArray) constr.get("primaryKey");
+				if(!checkPrimaryKey(pk, nueva, relacion))
+					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
+			}else if(constr.containsKey("foreignKey")){
+				
+			}else{
+				
+			}
+		}
+		
+		
+		((JSONArray)relacion.get("entries")).add(nueva);
+		
+		return new Tipo("void", "Se ha insertado con éxito.");
 		
 	}
 	
@@ -1511,9 +1496,38 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return currentTable;
 	}
 	
+	public JSONObject getColumn(JSONArray columns, String name){
+		Iterator<JSONObject> it = columns.iterator();
+		while(it.hasNext()){
+			JSONObject e = it.next();
+			if(e.get("name").toString().equals(name)){
+				return e;
+			}
+		}
+		return null;
+	}
 	
-	
-	
+	public boolean checkPrimaryKey(JSONArray pk, JSONObject values, JSONObject table){
+		
+		JSONArray entries = (JSONArray)table.get("entries");
+		int lim1 = entries.size();
+		int lim2 = pk.size();
+
+		for(int i=0; i<lim1; i++){
+			boolean encontrado = true;
+			for(int j=0; j<lim2; j++){
+				String key = pk.get(j).toString();
+				if(!((JSONObject)entries.get(i)).get(key).equals(values.get(key))){
+					encontrado = false;
+					break;
+				}
+			}
+			if(encontrado)return false;
+		}
+		return true;
+		
+	}
+
 }
 
 

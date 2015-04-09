@@ -1423,7 +1423,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			columnasTabla.add(fromC.get(i));
 			columnasRef.add(toC.get(i));
 		}
-		key.put("columnas", columnasTabla);
+		key.put("columns", columnasTabla);
 		key.put("references", columnasRef);
 		nuevo.put("foreignKey", key);
 		constraints.add(nuevo);

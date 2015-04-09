@@ -1,1 +1,5 @@
+<<<<<<< HEAD
+{"databases":[{"name":"PRUEBA","length":1}]}
+=======
 {"databases":[{"name":"DB","length":1}]}
+>>>>>>> refs/remotes/origin/master

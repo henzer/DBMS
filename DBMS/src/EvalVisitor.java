@@ -30,6 +30,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
 	private HashMap<String, JSONObject> memoria;
+	private HashMap<String, JSONObject> memoriaRef;
 	private JSONObject currentDataFile=null;
 	
 	
@@ -47,6 +48,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		tablaTipos = new TablaTipos();
 		memoria = new HashMap<String, JSONObject>();
+		memoriaRef = new HashMap<String, JSONObject>();
 		
 		//Se agregan los tipos de datos primitivos a la tabla de tipos.
 		tablaTipos.agregar("INT", 11);
@@ -704,15 +706,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitExpression1(@NotNull DDLGrammarParser.Expression1Context ctx) { 
 		Tipo res1=  visit(ctx.expression());
-		if(res1.getTipo().equals("error")){
-			return res1;
-		}
+		if(res1.isError())return res1;
+		
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
 		Tipo res2=  visit(ctx.expr1());
-		if(res2.getTipo().equals("error")){
-			return res2;
-		}
+		
+		if(res2.isError())return res2;
+		
 		newExpr.addAll(res2.getResultado());
 		newExpr.add(ctx.cond_op2().getText());
 		if((!res1.getTipo().equals("BOOL"))||(!res2.getTipo().equals("BOOL"))){
@@ -1053,18 +1054,34 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		for(int i=0; i<restricciones.size(); i++){
 			JSONObject constr = (JSONObject) restricciones.get(i);
-			if(constr.containsKey("primaryKey")){
-				JSONArray pk = (JSONArray) constr.get("primaryKey");
-				if(!checkPrimaryKey(pk, nueva, relacion))
-					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
-			}else if(constr.containsKey("foreignKey")){
+			if(constr.get("owner").toString().equals(tabla)){
 				
-			}else{
-				
+				if(constr.containsKey("primaryKey")){
+					JSONArray pk = (JSONArray) constr.get("primaryKey");
+					if(!checkPrimaryKey(pk, nueva, relacion))
+						return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
+				}else if(constr.containsKey("foreignKey")){
+					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
+					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
+					JSONArray fkRef = (JSONArray)fkObj.get("references");
+					String tableRef = fkObj.get("table").toString();
+					
+					JSONObject relacionRef;
+					if(memoria.containsKey(tableRef)){
+						relacionRef = memoria.get(tableRef);
+					}else{
+						relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
+						memoriaRef.put(tableRef, relacionRef);
+					}
+					if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
+						return new Tipo("error", "ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
+					
+				}else{
+					
+				}
 			}
 		}
-		
-		
+
 		((JSONArray)relacion.get("entries")).add(nueva);
 		
 		return new Tipo("void", "Se ha insertado con éxito.");
@@ -1072,10 +1089,37 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
-	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) { return visitChildren(ctx); }
-	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { return visitChildren(ctx);}
-	
+	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) {
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
 
+		String tabla = ctx.ID().getText();
+		Tipo t = visit(ctx.expression());
+		return t;
+		
+	}
+	
+	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
+	
+		return visitChildren(ctx);
+	
+	}
+	@Override public Tipo visitPart_select(@NotNull DDLGrammarParser.Part_selectContext ctx) { 
+		
+		return visitChildren(ctx);
+	}
+	@Override public Tipo visitFrom(@NotNull DDLGrammarParser.FromContext ctx) { 
+		
+		return visitChildren(ctx);
+		
+	}
+	@Override public Tipo visitWhere(@NotNull DDLGrammarParser.WhereContext ctx) { return visitChildren(ctx);}
+	@Override public Tipo visitOrder_by(@NotNull DDLGrammarParser.Order_byContext ctx) { return visitChildren(ctx);}
+
+	
+	
+	
 	//Metodos para archivos********************************************************************************************************
 	
 	//metodos para creacion de base de datos--------------------------------------------------------------------------
@@ -1405,7 +1449,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			columnasTabla.add(fromC.get(i));
 			columnasRef.add(toC.get(i));
 		}
-		key.put("columnas", columnasTabla);
+		key.put("columns", columnasTabla);
 		key.put("references", columnasRef);
 		nuevo.put("foreignKey", key);
 		constraints.add(nuevo);
@@ -1538,7 +1582,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	public boolean checkPrimaryKey(JSONArray pk, JSONObject values, JSONObject table){
-		
 		JSONArray entries = (JSONArray)table.get("entries");
 		int lim1 = entries.size();
 		int lim2 = pk.size();
@@ -1556,6 +1599,27 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		return true;
 		
+	}
+	
+	public boolean checkForeignKey(JSONArray fkLocal, JSONArray fkRef, JSONObject values, JSONObject table){
+		JSONArray entries = (JSONArray)table.get("entries");
+		int lim1 = entries.size();
+		int lim2 = fkLocal.size();
+
+		for(int i=0; i<lim1; i++){
+			boolean encontrado = true;
+			for(int j=0; j<lim2; j++){
+				String keyLocal = fkLocal.get(j).toString();
+				String keyRef = fkRef.get(j).toString();
+				
+				if(!((JSONObject)entries.get(i)).get(keyRef).equals(values.get(keyLocal))){
+					encontrado = false;
+					break;
+				}
+			}
+			if(encontrado)return true;
+		}
+		return false;
 	}
 	
 	public boolean calcular (ArrayList<String> input){
@@ -1592,8 +1656,45 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		return true;
+
 	}
 
+	public boolean calcularWhere(ArrayList<String> input){
+		Stack<String> temp=new Stack<String>();
+		for(int i=0;i<input.size();i++){
+			String actual = input.get(i);
+			//revisar si es operador
+			//operador and
+			if(actual.equals("AND")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				if(var1.equals("true")&&var2.equals("true")){
+					temp.push("true");
+				}
+				temp.push("false");
+			}
+			//operador or
+			else if(actual.equals("OR")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				if(var1.equals("true")||var2.equals("true")){
+					temp.push("true");
+				}
+				temp.push("false");
+			}
+			else if(actual.equals("NOT")){
+				String var=temp.pop();
+				if(var.equals("true")){
+					temp.push("false");
+				}
+				else if(var.equals("false")){
+					temp.push("true");
+				}
+			}
+		}
+		return true;
+
+	}
 }
 
 

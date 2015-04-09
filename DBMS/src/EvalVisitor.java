@@ -29,6 +29,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private JSONArray currentConstraints=null;
 	private JSONArray currentColumns=null;
 	private HashMap<String, JSONObject> memoria;
+	private HashMap<String, JSONObject> memoriaRef;
 	private JSONObject currentDataFile=null;
 	
 	
@@ -46,6 +47,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		tablaTipos = new TablaTipos();
 		memoria = new HashMap<String, JSONObject>();
+		memoriaRef = new HashMap<String, JSONObject>();
 		
 		//Se agregan los tipos de datos primitivos a la tabla de tipos.
 		tablaTipos.agregar("INT", 11);
@@ -1068,13 +1070,26 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(!checkPrimaryKey(pk, nueva, relacion))
 					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
 			}else if(constr.containsKey("foreignKey")){
+				JSONObject fkObj = (JSONObject)constr.get("foreignKey");
+				JSONArray fkLocal = (JSONArray)fkObj.get("columns");
+				JSONArray fkRef = (JSONArray)fkObj.get("references");
+				String tableRef = fkObj.get("table").toString();
+				
+				JSONObject relacionRef;
+				if(memoria.containsKey(tableRef)){
+					relacionRef = memoria.get(tableRef);
+				}else{
+					relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
+					memoriaRef.put(tableRef, relacionRef);
+				}
+				if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
+					return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
 				
 			}else{
 				
 			}
 		}
-		
-		
+
 		((JSONArray)relacion.get("entries")).add(nueva);
 		
 		return new Tipo("void", "Se ha insertado con éxito.");
@@ -1508,7 +1523,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	public boolean checkPrimaryKey(JSONArray pk, JSONObject values, JSONObject table){
-		
 		JSONArray entries = (JSONArray)table.get("entries");
 		int lim1 = entries.size();
 		int lim2 = pk.size();
@@ -1525,6 +1539,28 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if(encontrado)return false;
 		}
 		return true;
+		
+	}
+	
+	public boolean checkForeignKey(JSONArray fkLocal, JSONArray fkRef, JSONObject values, JSONObject table){
+		JSONArray entries = (JSONArray)table.get("entries");
+		int lim1 = entries.size();
+		int lim2 = fkLocal.size();
+
+		for(int i=0; i<lim1; i++){
+			boolean encontrado = true;
+			for(int j=0; j<lim2; j++){
+				String keyLocal = fkLocal.get(j).toString();
+				String keyRef = fkRef.get(j).toString();
+				
+				if(!((JSONObject)entries.get(i)).get(keyRef).equals(values.get(keyLocal))){
+					encontrado = false;
+					break;
+				}
+			}
+			if(encontrado)return true;
+		}
+		return false;
 		
 	}
 

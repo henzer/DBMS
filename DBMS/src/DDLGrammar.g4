@@ -6,8 +6,10 @@ fragment DIGIT: '0'..'9' ;
 NUM: ('-')?  DIGIT(DIGIT)*;
 DATE: DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT;
 FLOAT:  NUM '.' (DIGIT)*;
-
 ID : LETTER (LETTER | DIGIT)* ;
+TABLEID : ID'.'ID;
+NULL: 'NULL';
+
 
 COMMENTS: '//' ~('\r' | '\n' )*  -> channel(HIDDEN);
 WS: [ \t\r\n\f]+  -> channel(HIDDEN);
@@ -169,6 +171,7 @@ factor
 	: literal					#factorLiteral
 	| '(' expression ')'		#factorExpression
 	| ID   						#factorID
+	| NULL						#factorNull
 	;
 	
 
@@ -192,5 +195,22 @@ delete
 	;
 
 select
-	: 'SELECT' ('*'|(ID)+) 'FROM' ID 'WHERE' ID ('ORDER' 'BY' ID ('ASC'|'DESC')(','ID ('ASC'|'DESC') )*)?
+	: 'SELECT' part_select  'FROM' from  'WHERE' where ('ORDER' 'BY' order_by)?
 	;
+	
+part_select:
+	('*'|(TABLEID|ID) (',' (TABLEID|ID))*)
+	;
+
+from:
+	ID (',' ID)*
+	;
+where:
+	expression
+	;
+	
+order_by:
+	(TABLEID|ID) ('ASC'|'DESC')(','(TABLEID|ID) ('ASC'|'DESC') )*
+	;
+	
+

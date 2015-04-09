@@ -24,16 +24,28 @@ public class ControladorDDL {
 		tokens = new CommonTokenStream(lexer);
 		parser = new DDLGrammarParser(tokens);
 		
+		ErrorListener e = new ErrorListener();
+		
+		//Se agrega el listener de Errores que implementa la interfaz ANTLRErrorListener al lexer y al parser.
+		lexer.removeErrorListeners();
+		lexer.addErrorListener(e);
+		parser.removeErrorListeners();
+		parser.addErrorListener(e);
+		
+		
 		//Revision Lexica y Sintactica
-		//parser.statement();
-		//parser.reset();
+		parser.statement();
+		if(!e.isError()){
+			parser.reset();
+			//Revision Semantica
+			EvalVisitor visitador = new EvalVisitor();
+			Tipo t = (Tipo) visitador.visit(parser.statement());
+			parser.reset();
+			return t.getMensaje();
+		}else{
+			return e.getMessage();
+		}
 		
-		//Revision Semantica
-		EvalVisitor visitador = new EvalVisitor();
-		Tipo t = (Tipo) visitador.visit(parser.statement());
-		parser.reset();
-		
-		return t.getMensaje();
 	}
 
 }

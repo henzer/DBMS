@@ -6,7 +6,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Stack;
@@ -1102,8 +1101,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
-		//Tipo t1 = visit(ctx.from());
-		//if(t1.isError())return t1;
+		Tipo t1 = visit(ctx.from());
+		if(t1.isError())return t1;
+		
+		
 		return visitChildren(ctx);
 	
 	}
@@ -1625,45 +1626,117 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return false;
 	}
 	
-	public boolean calcular (ArrayList<String> input){
+	public boolean validar (ArrayList<String> input,JSONObject tuple){
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
 			//revisar si es operador
 			//operador and
 			if(actual.equals("AND")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")&&var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
+				boolean var1=Boolean.parseBoolean(temp.pop());
+				boolean var2=Boolean.parseBoolean(temp.pop());
+				temp.push((var1&&var2)+"");
 			}
 			//operador or
 			else if(actual.equals("OR")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")||var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
+				boolean var1=Boolean.parseBoolean(temp.pop());
+				boolean var2=Boolean.parseBoolean(temp.pop());
+				temp.push((var1||var2)+"");
 			}
 			else if(actual.equals("NOT")){
-				String var=temp.pop();
-				if(var.equals("true")){
-					temp.push("false");
+				boolean var=Boolean.parseBoolean(temp.pop());
+				temp.push(!var+"");
+			}
+			else if(actual.equals(">")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res>0)+"");
+			}
+			else if(actual.equals("<")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res<0)+"");
+			}
+			else if(actual.equals("=")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res==0)+"");
+			}
+			else if(actual.equals("<>")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res!=0)+"");
+			}
+			else if(actual.equals("<")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res<0)+"");
+			}
+			else if(actual.equals(">=")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res>=0)+"");
+			}
+			else if(actual.equals("<=")){
+				String var1=temp.pop();
+				String var2=temp.pop();
+				//evaluo alreves por que estan saliendo de la pila
+				int res=compareTo(var2,var1);
+				temp.push((res<=0)+"");
+			}
+			else{
+				String var=actual;
+				String regex="[a-zA-Z](\\w)*(.[a-zA-Z](\\w)*)?";
+				//revisar si es id
+				if(var.matches(regex)){
+					temp.push((String)tuple.get(var));
 				}
-				else if(var.equals("false")){
-					temp.push("true");
+				else{
+					temp.push(var);
 				}
 			}
+		}
+		System.out.println(temp);
+		if(temp.empty()){
+			String value=temp.pop();
+			return value.equals("true");
 		}
 		return true;
 
 	}
-
+	//si el value1<value2 devuelve negativo, si value1>value2 devuelvo positivo, si son iguales 0
+	public int compareTo(String value1,String value2){
+		//ver char y date
+		if(value1.startsWith("'")||(value1.indexOf("-")>0)){
+			return value1.compareTo(value2);
+		}
+		else{
+			float var1=Float.parseFloat(value1);
+			float var2=Float.parseFloat(value2);
+			if(var1<var2){
+				return -1;
+			}
+			else if(var2<var1){
+				return 1;
+			}
+			else{
+				return 0;
+			}
+		}
+	}
 	public boolean calcularWhere(ArrayList<String> input){
-		JSONArray a = new JSONArray();
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);

@@ -274,7 +274,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitLiteralChar(@NotNull DDLGrammarParser.LiteralCharContext ctx) { 
 		ArrayList<String> currentExpression=new ArrayList<String>();
 		currentExpression.add(ctx.getText());
-		Tipo res= new Tipo("CHAR",currentExpression);
+		Tipo res= new Tipo("CHAR");
+		res.setResultado(currentExpression);
 		res.setLength(ctx.getText().length());
 		return res;
 	}
@@ -539,9 +540,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
-		if(res1.getResultado()==null){
-			System.out.println("null"+"tipo "+res1.getTipo()+"length "+res1.getLength());
-		}
 		newExpr.addAll(res1.getResultado());
 		Tipo res2=  visit(ctx.expr3());
 		if(res2.getTipo().equals("error")){
@@ -911,7 +909,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if(ctx.ID().getText().equals((String)current.get("name"))){
 				if("CHAR".equals((String)current.get("type"))){
 					Tipo resultado=new Tipo((String)current.get("type")); 
-					resultado.setLength(Integer.parseInt(""+current.get("length")));
+					resultado.setLength(Integer.parseInt((String)current.get("length")));
+					return resultado;
 				}
 				return new Tipo((String)current.get("type"),currentExpression);
 			}
@@ -1406,7 +1405,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			columnasTabla.add(fromC.get(i));
 			columnasRef.add(toC.get(i));
 		}
-		key.put("columns", columnasTabla);
+		key.put("columnas", columnasTabla);
 		key.put("references", columnasRef);
 		nuevo.put("foreignKey", key);
 		constraints.add(nuevo);
@@ -1590,11 +1589,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				else if(var.equals("false")){
 					temp.push("true");
 				}
-			}
-			else if(actual.equals("=")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				
 			}
 		}
 		return true;

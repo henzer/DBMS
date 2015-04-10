@@ -1114,6 +1114,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	@Override public Tipo visitFrom(@NotNull DDLGrammarParser.FromContext ctx) { 
 		
+		
 		return visitChildren(ctx);
 		
 	}

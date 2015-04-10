@@ -1713,21 +1713,44 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			//revisar si es operador
 			//operador and
 			if(actual.equals("AND")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				boolean var1=Boolean.parseBoolean(temp.pop());
 				boolean var2=Boolean.parseBoolean(temp.pop());
 				temp.push((var1&&var2)+"");
 			}
 			//operador or
 			else if(actual.equals("OR")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				boolean var1=Boolean.parseBoolean(temp.pop());
 				boolean var2=Boolean.parseBoolean(temp.pop());
 				temp.push((var1||var2)+"");
 			}
 			else if(actual.equals("NOT")){
+				if(temp.peek()==null){
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				boolean var=Boolean.parseBoolean(temp.pop());
 				temp.push(!var+"");
 			}
 			else if(actual.equals(">")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1735,6 +1758,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res>0)+"");
 			}
 			else if(actual.equals("<")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1742,6 +1771,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res<0)+"");
 			}
 			else if(actual.equals("=")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1749,6 +1784,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res==0)+"");
 			}
 			else if(actual.equals("<>")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1756,6 +1797,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res!=0)+"");
 			}
 			else if(actual.equals("<")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1763,6 +1810,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res<0)+"");
 			}
 			else if(actual.equals(">=")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila
@@ -1770,6 +1823,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				temp.push((res>=0)+"");
 			}
 			else if(actual.equals("<=")){
+				if(temp.peek()==null||temp.get(temp.size()-2)==null){
+					temp.pop();
+					temp.pop();
+					temp.push("true");
+					continue;
+				}
 				String var1=temp.pop();
 				String var2=temp.pop();
 				//evaluo alreves por que estan saliendo de la pila

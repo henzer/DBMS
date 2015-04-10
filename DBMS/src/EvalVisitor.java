@@ -303,6 +303,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { 
 		Tipo res1=  visit(ctx.expr3());
+		Tipo res2=  visit(ctx.unifactor());
+		
 		//checkeo de null
 		
 		if(res1.getTipo().equals("error")){
@@ -310,7 +312,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=  visit(ctx.unifactor());
+		
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}

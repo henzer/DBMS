@@ -32,7 +32,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private HashMap<String, JSONObject> memoria;
 	private HashMap<String, JSONObject> memoriaRef;
 	private JSONObject currentDataFile=null;
-	
+	private boolean isCheck=false;
 	
 	
 	public EvalVisitor(){
@@ -111,6 +111,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitConstraintDecl3(@NotNull DDLGrammarParser.ConstraintDecl3Context ctx) { 
+		isCheck=true;
 		Tipo res=  visit(ctx.expression());
 		if(res.getTipo().equals("error")){
 			return res;
@@ -180,6 +181,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitUniFactorNot(@NotNull DDLGrammarParser.UniFactorNotContext ctx) { 
 		Tipo res =   visit(ctx.factor());
+		if(res==null){
+			ArrayList<String> nueva=new ArrayList<String>();
+			nueva.add(isCheck+"");
+			return new Tipo("BOOL",nueva);
+		}
 		if(!res.getTipo().equals("BOOL")){
 			return new Tipo("error","Operator NOT requires BOOL expressions");
 		}
@@ -257,6 +263,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitFactorLiteral(@NotNull DDLGrammarParser.FactorLiteralContext ctx) { 
 		return visit(ctx.literal());
 	}
+	
+	@Override public Tipo visitFactorNull(@NotNull DDLGrammarParser.FactorNullContext ctx) { 
+		//debe retornar un tipo null
+		return null;
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -289,6 +300,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitExpr31(@NotNull DDLGrammarParser.Expr31Context ctx) { 
 		Tipo res1=  visit(ctx.expr3());
+		//checkeo de null
+		
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
@@ -1625,8 +1638,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		return false;
 	}
-	
-	public boolean validar (ArrayList<String> input,JSONObject tuple){
+	//null value se ingresa como false si se quiere que las expresiones que encuentren un null den como resulatdo un false
+	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue){
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
@@ -1636,7 +1649,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				boolean var1=Boolean.parseBoolean(temp.pop());
@@ -1648,7 +1661,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				boolean var1=Boolean.parseBoolean(temp.pop());
@@ -1658,7 +1671,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			else if(actual.equals("NOT")){
 				if(temp.peek()==null){
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				boolean var=Boolean.parseBoolean(temp.pop());
@@ -1668,7 +1681,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1681,7 +1694,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1694,7 +1707,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1707,7 +1720,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1720,7 +1733,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1733,7 +1746,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();
@@ -1746,7 +1759,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(temp.peek()==null||temp.get(temp.size()-2)==null){
 					temp.pop();
 					temp.pop();
-					temp.push("true");
+					temp.push(nullValue+"");
 					continue;
 				}
 				String var1=temp.pop();

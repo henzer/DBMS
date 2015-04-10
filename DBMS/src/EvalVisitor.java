@@ -1156,7 +1156,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int contador = 0;
 		for(int i = 0; i<size; i++){
 			JSONObject tupla = (JSONObject)entries.get(i);
-			if (validar(expr, tupla)){
+			if (validar(expr, tupla, false)){
 				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
 					entries.remove(i);

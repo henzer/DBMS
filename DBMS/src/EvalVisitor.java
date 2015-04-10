@@ -10,6 +10,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Stack;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import javax.swing.JOptionPane;
 
 import org.antlr.v4.runtime.misc.NotNull;
@@ -910,7 +913,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if(ctx.ID().getText().equals((String)current.get("name"))){
 				if("CHAR".equals((String)current.get("type"))){
 					Tipo resultado=new Tipo((String)current.get("type")); 
-					resultado.setLength(Integer.parseInt((String)current.get("length")));
+					resultado.setLength(Integer.parseInt(current.get("length").toString()));
 					return resultado;
 				}
 				return new Tipo((String)current.get("type"),currentExpression);
@@ -941,19 +944,17 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) {
 		memoria = new HashMap<String, JSONObject>();
-
-		int contador = 0;
+		Tipo t=new Tipo("void");
 		for(DDLGrammarParser.DeleteContext delete : ctx.delete()){
-			Tipo t = visit(delete);
+			t = visit(delete);
 			if (t.isError()) return t;
-			contador++;
 		}
 		
 		for(String key: memoria.keySet()){
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
 		
-		return new Tipo("void", "Se han eliminado "+ contador+" registros con éxito.");
+		return t;
 	}
 	
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
@@ -1093,10 +1094,88 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
-
+		//Se extrae el nombre de la tabla 
 		String tabla = ctx.ID().getText();
+		//Verfica que exista la tabla en la base de datos actual.
+		JSONObject currentTable= getTable(tabla);
+		if(currentTable==null){
+			return new Tipo("error", "ERROR.-Table name "+tabla+" not available in database " + databaseName);
+		}
+		
+		currentColumns = (JSONArray)currentTable.get("columns");
 		Tipo t = visit(ctx.expression());
-		return t;
+		if(t.isError())return t;
+		
+		ArrayList<String> expr = t.getResultado();
+		
+		//Se guarda la relacion en memoria para optimizar el manejador.
+		JSONObject relacion;
+		if(memoria.containsKey(tabla)){
+			relacion = memoria.get(tabla);
+		}else{
+			relacion=readJSON(baseDir+databaseName+"/"+tabla+".json");
+			memoria.put(tabla, relacion);
+		}
+		
+		JSONArray entries = (JSONArray)relacion.get("entries");
+		int size = entries.size();
+		
+		//ScriptEngineManager manager = new ScriptEngineManager();
+	    //ScriptEngine engine = manager.getEngineByName("js"); 
+		//Se busca las restricciones
+		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
+		int sizeRestrict = restricciones.size();
+		JSONArray misRestricciones = new JSONArray();
+		HashMap<String, JSONObject> misRelaciones = new HashMap();	
+		
+		for(int j=0; j<sizeRestrict; j++){
+			JSONObject constr = (JSONObject) restricciones.get(j);
+			JSONObject foreignKey = (JSONObject)constr.get("foreignKey");
+			if(foreignKey!=null && foreignKey.get("table").toString().equals(tabla)){
+				misRestricciones.add(constr);
+				String table = constr.get("owner").toString();
+				misRelaciones.put(table, readJSON(baseDir+databaseName+"/"+table+".json"));
+			}
+		}
+		int limRes = misRestricciones.size();
+		int contador = 0;
+		for(int i = 0; i<size; i++){
+			JSONObject tupla = (JSONObject)entries.get(i);
+			if (validar(expr, tupla)){
+				System.out.println("Se eliminará: " + tupla);
+				if(limRes==0){
+					entries.remove(i);
+					size--;
+					i--;
+					contador++;
+				}
+				for(int j= 0; j<misRestricciones.size(); j++){
+					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
+					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
+					String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
+					if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
+						entries.remove(i);
+						size--;
+						i--;
+						contador++;
+					}else{
+						return new Tipo("error", "ERROR.-No puede eliminarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)misRestricciones.get(j)).get("name"));
+					}
+				}
+			}
+			
+			/*try {
+				Object result = engine.eval(tupla.get("PRENDA")+"=='CAMISA'");
+				System.out.println(tupla.get("PRENDA")+"=='Camisa': " + result);
+				if(result.toString().equals("true")){
+					System.out.println("Se eliminará: " + tupla);
+				}
+			} catch (ScriptException e) {
+				e.printStackTrace();
+			}*/
+		}
+		
+		return new Tipo("void", "Se han eliminado " + contador + " filas exitosamente.");
 		
 	}
 	
@@ -1710,7 +1789,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		System.out.println(temp);
-		if(temp.empty()){
+		if(!temp.empty()){
 			String value=temp.pop();
 			return value.equals("true");
 		}

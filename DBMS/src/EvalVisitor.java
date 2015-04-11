@@ -1409,19 +1409,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int contador = 0;
 		
 		for(int i = 0; i<size; i++){
-<<<<<<< HEAD
 			JSONObject tupla = (JSONObject)entries.get(i);
 			if (sinWhere || validar(expr, tupla, false)){
-=======
-			JSONObject tupla = (JSONObject)entries.get(i);
-			boolean result=false;
-			try{
-				result=validar(expr, tupla,true);
-			}catch(Exception e){
-				return new Tipo("error",e.getMessage());
-			}
-			if (result){
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
 					entries.remove(i);
@@ -2019,7 +2008,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return false;
 	}
 	//null value se ingresa como false si se quiere que las expresiones que encuentren un null den como resulatdo un false
-	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue)throws Exception{
+	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue){
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
@@ -2158,7 +2147,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 							temp.push((String)tuple.get(var));
 						}
 						else{
-							throw new Exception("ID "+var+" does not exist");
+							//throw new Exception("ID "+var+" does not exist");
 						}
 					}
 					else{
@@ -2180,13 +2169,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 							}
 						}
 						if(count==0){
-							throw new Exception("ID "+var+" does not exist");
+							//throw new Exception("ID "+var+" does not exist");
 						}
 						else if(count==1){
 							temp.push((String)tuple.get(fkey));
 						}
 						else{
-							throw new Exception("Duplicate ID "+var);
+							//throw new Exception("Duplicate ID "+var);
 						}
 					}
 				}
@@ -2259,9 +2248,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return true;
 
 	}
-<<<<<<< HEAD
-}
-=======
+
 	
 	public JSONObject getRelationFromMemory(String name){
 		JSONObject relacion;
@@ -2345,4 +2332,3 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 
 
 
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git

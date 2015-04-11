@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-{"databases":[{"name":"INVENTARIO","length":1}]}
-=======
-{"databases":[{"name":"DB","length":3}]}
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
+{"databases":[{"name":"INVENTARIO","length":2}]}

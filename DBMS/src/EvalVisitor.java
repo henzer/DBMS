@@ -5,9 +5,12 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Stack;
 
 import javax.script.ScriptEngine;
@@ -36,6 +39,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private HashMap<String, JSONObject> memoriaRef;
 	private JSONObject currentDataFile=null;
 	private boolean isCheck=false;
+	private SimpleDateFormat formatoFecha;
 	
 	
 	public EvalVisitor(){
@@ -52,6 +56,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tablaTipos = new TablaTipos();
 		memoria = new HashMap<String, JSONObject>();
 		memoriaRef = new HashMap<String, JSONObject>();
+		
+		//Se inicializa el comprobador de tipos
+		new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 		
 		//Se agregan los tipos de datos primitivos a la tabla de tipos.
 		tablaTipos.agregar("INT", 11);
@@ -927,7 +934,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			JSONObject current=(JSONObject)currentColumns.get(i);
 			if(ctx.ID().getText().equals((String)current.get("name"))){
 				if("CHAR".equals((String)current.get("type"))){
-					Tipo resultado=new Tipo((String)current.get("type")); 
+					Tipo resultado=new Tipo((String)current.get("type"),currentExpression); 
 					resultado.setLength(Integer.parseInt(current.get("length").toString()));
 					return resultado;
 				}
@@ -956,7 +963,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return new Tipo("void", "Se ha insertado "+ contador+" registros con éxito.");
 		
 	}
-	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) {
+		memoria = new HashMap<String, JSONObject>();
+		Tipo t=new Tipo("void");
+		for(DDLGrammarParser.UpdateContext update : ctx.update()){
+			t = visit(update);
+			if (t.isError()) return t;
+		}
+		
+		for(String key: memoria.keySet()){
+			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
+		}
+		
+		return t;
+	}
 	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) {
 		memoria = new HashMap<String, JSONObject>();
 		Tipo t=new Tipo("void");
@@ -988,13 +1008,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		
 		//Se guarda la relacion en memoria para optimizar el manejador.
-		JSONObject relacion;
-		if(memoria.containsKey(tabla)){
-			relacion = memoria.get(tabla);
-		}else{
-			relacion=readJSON(baseDir+databaseName+"/"+tabla+".json");
-			memoria.put(tabla, relacion);
-		}
+		JSONObject relacion = getRelationFromMemory(tabla);
 		
 		
 		JSONArray columns = (JSONArray) currentTable.get("columns");
@@ -1065,46 +1079,141 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 
 		}
 		
-		//CHEQUEA PRIMARY KEY
-		//Se verifican las restricciones.
-		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
-		for(int i=0; i<restricciones.size(); i++){
-			JSONObject constr = (JSONObject) restricciones.get(i);
-			if(constr.get("owner").toString().equals(tabla)){
-				
-				if(constr.containsKey("primaryKey")){
-					JSONArray pk = (JSONArray) constr.get("primaryKey");
-					if(!checkPrimaryKey(pk, nueva, relacion))
-						return new Tipo("error", "ERROR.-Ya existe una tupla con esa llave");
-				}else if(constr.containsKey("foreignKey")){
-					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
-					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
-					JSONArray fkRef = (JSONArray)fkObj.get("references");
-					String tableRef = fkObj.get("table").toString();
-					
-					JSONObject relacionRef;
-					if(memoria.containsKey(tableRef)){
-						relacionRef = memoria.get(tableRef);
-					}else{
-						relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
-						memoriaRef.put(tableRef, relacionRef);
-					}
-					if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
-						return new Tipo("error", "ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
-					
-				}else{
-					
-				}
-			}
+		//Intenta insertar. Se verifican las restricciones.
+		try {
+			insert(nueva, relacion, tabla);
+		} catch (Exception e) {
+			return new Tipo("error", e.getMessage());
 		}
-
-		((JSONArray)relacion.get("entries")).add(nueva);
 		
 		return new Tipo("void", "Se ha insertado con éxito.");
 		
 	}
 	
-	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) {
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
+		//Se extrae el nombre de la tabla 
+		String tabla = ctx.ID(0).getText();
+		//Verfica que exista la tabla en la base de datos actual.
+		JSONObject currentTable= getTable(tabla);
+		if(currentTable==null){
+			return new Tipo("error", "ERROR.-Table name "+tabla+" not available in database " + databaseName);
+		}
+		
+		currentColumns = (JSONArray)currentTable.get("columns");
+		//Verifica que contenga al expression, de no ser así, no lo visita y no calcula la expression.
+		boolean sinWhere = false;
+		ArrayList<String> expr = null;
+		if(ctx.expression()!=null){
+			Tipo t = visit(ctx.expression());
+			if(t.isError())return t;
+			expr = t.getResultado();
+		}else{
+			sinWhere = true;
+		}
+		
+		//Se guarda la relacion en memoria para optimizar el manejador.
+		JSONObject relacion = getRelationFromMemory(tabla);
+		//Se extraen los registros de la tabla a modificar
+		JSONArray entries = (JSONArray)relacion.get("entries");
+		int size = entries.size();
+		
+		//Se busca las restricciones
+		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
+		int sizeRestrict = restricciones.size();
+		JSONArray listFKRef = new JSONArray();
+		JSONArray listFKLocal = new JSONArray();
+		JSONObject PK = null;
+		HashMap<String, JSONObject> misRelaciones = new HashMap();	
+		
+		for(int j=0; j<sizeRestrict; j++){
+			JSONObject constr = (JSONObject) restricciones.get(j);
+			if(constr.get("owner").equals(tabla) && constr.get("primaryKey")!=null){
+				PK = constr;
+			}
+			if(constr.get("owner").equals(tabla) && constr.get("foreignKey")!=null){
+				JSONObject foreignKey = (JSONObject)constr.get("foreignKey");
+				listFKLocal.add(constr);
+				String table = foreignKey.get("table").toString();
+				misRelaciones.put(table, readJSON(baseDir+databaseName+"/"+table+".json"));
+			}
+			
+			JSONObject foreignKey = (JSONObject)constr.get("foreignKey");
+			if(foreignKey!=null && foreignKey.get("table").toString().equals(tabla)){
+				listFKRef.add(constr);
+				String table = constr.get("owner").toString();
+				misRelaciones.put(table, readJSON(baseDir+databaseName+"/"+table+".json"));
+			}
+		}
+		
+		//Se realiza la comparacion de tipos
+		LinkedHashMap<String, String> values = new LinkedHashMap<String, String>();
+		int i = 1;
+		for(DDLGrammarParser.LiteralContext literal: ctx.literal()){
+			String id = ctx.ID(i).getText();
+			String value = literal.getText();
+			Tipo t = visit(literal);
+			if(t.isError())return t;
+			JSONObject col = getColumn(currentColumns, id);
+			try{
+				values.put(id, castTypes(col, t, value));
+			}catch(Exception ex){
+				return new Tipo("error", ex.getMessage());
+			}
+			i++;
+		}
+		
+		int limValues = values.size();
+		int sizeListFKRef = listFKRef.size();
+		int contador = 0;
+		for(int j= 0; j<size; j++){
+			JSONObject tupla = (JSONObject)entries.get(j);
+			if(sinWhere || validar(expr, tupla, false)){
+
+				//Restricciones delete
+				boolean bandera;
+				for(int l= 0; l<sizeListFKRef; l++){
+					bandera = true;
+					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("references");
+					for(String key: values.keySet()){
+						if(fkLocal.contains(key)){
+							bandera = false;
+							break;
+						}
+					}
+					if(bandera)continue;
+					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("columns");
+					String tablaRef = ((JSONObject)listFKRef.get(l)).get("owner").toString();
+					if(checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef)))
+						return new Tipo("error", "ERROR.-No puede modificarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)listFKRef.get(j)).get("name"));
+				}
+				
+				entries.remove(tupla);
+				for(String key: values.keySet()){
+					tupla.put(key, values.get(key));
+				}
+				
+				//Restricciones Insert
+				try {
+					insert(tupla, relacion, tabla);
+					i--;
+					size--;
+					contador++;
+				} catch (Exception e) {
+					return new Tipo("error", e.getMessage());
+				}
+				
+			}
+			
+		}
+		
+		return new Tipo("void", "Se han modificado " + contador + " con exito");
+		
+		
+	}
+	
 	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) {
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
@@ -1118,19 +1227,18 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		
 		currentColumns = (JSONArray)currentTable.get("columns");
-		Tipo t = visit(ctx.expression());
-		if(t.isError())return t;
-		
-		ArrayList<String> expr = t.getResultado();
+		boolean sinWhere = false;
+		ArrayList<String> expr = null;
+		if(ctx.expression()!=null){
+			Tipo t = visit(ctx.expression());
+			if(t.isError())return t;
+			expr = t.getResultado();
+		}else{
+			sinWhere = true;
+		}
 		
 		//Se guarda la relacion en memoria para optimizar el manejador.
-		JSONObject relacion;
-		if(memoria.containsKey(tabla)){
-			relacion = memoria.get(tabla);
-		}else{
-			relacion=readJSON(baseDir+databaseName+"/"+tabla+".json");
-			memoria.put(tabla, relacion);
-		}
+		JSONObject relacion = getRelationFromMemory(tabla);
 		
 		JSONArray entries = (JSONArray)relacion.get("entries");
 		int size = entries.size();
@@ -1154,9 +1262,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		int limRes = misRestricciones.size();
 		int contador = 0;
+		
 		for(int i = 0; i<size; i++){
 			JSONObject tupla = (JSONObject)entries.get(i);
-			if (validar(expr, tupla, false)){
+			if (sinWhere || validar(expr, tupla, false)){
 				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
 					entries.remove(i);
@@ -1926,6 +2035,85 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return true;
 
 	}
+	
+	public JSONObject getRelationFromMemory(String name){
+		JSONObject relacion;
+		if(memoria.containsKey(name)){
+			relacion = memoria.get(name);
+		}else{
+			relacion=readJSON(baseDir+databaseName+"/"+name+".json");
+			memoria.put(name, relacion);
+		}
+		return relacion;
+	}
+	
+	public String castTypes(JSONObject column, Tipo literal, String value) throws Exception{
+		String t1 = column.get("type").toString();
+		String t2 = literal.getTipo();
+		if(t1.equals(t2)){
+			if(t1.equals("CHAR")){
+				int l1 = Integer.parseInt(column.get("length").toString());
+				int l2 = literal.getLength()-2;
+				if(l1>=l2){
+					return value;
+				}else{
+					throw new Exception("ERROR.-El CHAR "+value+"tiene un tamaño muy grande.");
+				}
+			}else if(t1.equals("DATE")){
+				try{
+					formatoFecha.setLenient(false);
+					formatoFecha.parse(value);
+				}catch(Exception ex){
+					throw new Exception("ERROR.-La fecha "+value+" no es una fecha valida.");
+				}
+			}
+			return value;
+		}else{
+			if (t1.equals("INT") && t2.equals("FLOAT")){
+				int val = Integer.parseInt(value);
+				return val+"";
+			}
+			if(t1.equals("FLOAT") && t2.equals("INT")){
+				float val = Float.parseFloat(value);
+				return  val + "";
+			}
+			throw new Exception("ERROR.-El valor " + value + " no coincide con el tipo de la columna: " + column.get("name"));
+		}
+	}
+	
+	public void insert(JSONObject nueva, JSONObject relacion, String tabla) throws Exception{
+		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
+		for(int i=0; i<restricciones.size(); i++){
+			JSONObject constr = (JSONObject) restricciones.get(i);
+			if(constr.get("owner").toString().equals(tabla)){
+				if(constr.containsKey("primaryKey")){
+					JSONArray pk = (JSONArray) constr.get("primaryKey");
+					if(!checkPrimaryKey(pk, nueva, relacion))
+						throw new Exception("ERROR.-Se esta violando la llave primaria: " + constr.get("name"));
+				}else if(constr.containsKey("foreignKey")){
+					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
+					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
+					JSONArray fkRef = (JSONArray)fkObj.get("references");
+					String tableRef = fkObj.get("table").toString();
+					
+					JSONObject relacionRef;
+					if(memoria.containsKey(tableRef)){
+						relacionRef = memoria.get(tableRef);
+					}else{
+						relacionRef=readJSON(baseDir+databaseName+"/"+tableRef+".json");
+						memoriaRef.put(tableRef, relacionRef);
+					}
+					if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
+						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
+					
+				}else{
+					//Validar check
+				}
+			}
+		}
+		((JSONArray)relacion.get("entries")).add(nueva);
+	}
+	
 }
 
 

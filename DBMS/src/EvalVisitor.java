@@ -67,15 +67,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(currentDataBase==null){
 			return new Tipo("error","No database Selected");
 		}
+		currentConstraints=(JSONArray)currentDataBase.get("constraints");
 		//verificar la existencia de la tabla
 		JSONArray tables=(JSONArray)currentDataBase.get("tables");
 		int index=-1;
-		int length=-1;
 		for(int i=0;i<tables.size();i++){
 			JSONObject current=(JSONObject)tables.get(i);
 			if(ctx.ID(0).getText().equals((String)current.get("name"))){
 				index=i;
-				length=(int)(long)current.get("length");
 				break;
 			}
 		}
@@ -86,11 +85,29 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(!checkTableName(ctx.ID(1).getText(),currentDataBase)){
 			return new Tipo("error","Name "+ctx.ID(1).getText()+" is not available");
 		}
+		//cambiar las referencias en constraints
+		for(int i=0;i<currentConstraints.size();i++){
+			JSONObject current=(JSONObject)currentConstraints.get(i);
+			if(ctx.ID(0).getText().equals((String)current.get("owner"))){
+				current.remove("owner");
+				current.put("owner", ctx.ID(1).getText());
+			}
+			else{
+				JSONObject fk=(JSONObject)current.get("foreignKey");
+				if(fk!=null){
+					if(ctx.ID(0).getText().equals((String)current.get("table"))){
+						fk.remove("table");
+						fk.put("table", ctx.ID(1).getText());
+					}
+				}
+			}
+		}
 		//escribir los archivos y realizar los cambios de nombre
 		
 		JSONObject newTable=new JSONObject();
 		newTable.put("name", ctx.ID(1));
-		newTable.put("length",length );
+		JSONObject tabla=(JSONObject)tables.get(index);
+		newTable.put("columns", (JSONArray)tabla.get("columns"));
 		tables.remove(index);
 		tables.add(newTable);
 		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
@@ -858,6 +875,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			 newColumn.put("length", actual.getLength());
 		 }
 		 //revisar que las constraints no tengan error
+		 currentColumns.add(newColumn);
 		 for(int i=0;i<ctx.constraintDecl().size();i++){
 			 Tipo currentT=  visit(ctx.constraintDecl(i));
 			 if(currentT.getTipo().equals("error")){
@@ -903,7 +921,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		//revisar que exista la columna
 		int index=-1;
 		for(int i=0;i<currentColumns.size();i++){
-			if(ctx.ID().getText().equals((String)currentColumns.get(i))){
+			JSONObject current = (JSONObject)currentColumns.get(i);
+			if(ctx.ID().getText().equals((String)current.get("name"))){
 				index=i;
 				break;
 			}
@@ -918,7 +937,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			 if(currentC.get("primaryKey")!=null){
 				 JSONArray primaryKey = (JSONArray)currentC.get("primaryKey");
 				 for(int j=0;j<primaryKey.size();j++){
-					 if(ctx.ID().getText().equals((String)primaryKey.get(i))){
+					 if(ctx.ID().getText().equals((String)primaryKey.get(j))&&owner.equals((String)currentC.get("owner"))){
 						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
 					 }
 				 }
@@ -949,7 +968,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			 else if(currentC.get("check")!=null){
 				 JSONArray check=(JSONArray)currentC.get("check");
 				 for(int j=0;j<check.size();j++){
-					 if(ctx.ID().getText().equals((String)check.get(j))){
+					 if(ctx.ID().getText().equals((String)check.get(j))&&owner.equals((String)currentC.get("owner"))){
 						 return new Tipo("error","Column "+ctx.ID().getText()+" used in constraint "+currentC.get("name"));
 					 }
 				 }
@@ -1040,11 +1059,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		ArrayList<String> currentExpression=new ArrayList<String>();
 		currentExpression.add(ctx.getText());
 		//revisar si se permiten tableid
-		if(!tableID){
+		/*if(!tableID){
 			if(ctx.TABLEID()!=null){
 				return new Tipo("error","ID.ID is only allowed in Select");
 			}
-		}
+		}*/
 		for(int i=0;i<currentColumns.size();i++){
 			JSONObject current=(JSONObject)currentColumns.get(i);
 			if(ctx.ID().getText().equals((String)current.get("name"))){

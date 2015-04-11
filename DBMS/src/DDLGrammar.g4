@@ -187,11 +187,11 @@ insert
 	;
 	
 update
-	: 'UPDATE' ID 'SET' ID '=' literal (','ID '=' literal)*
+	: 'UPDATE' ID 'SET' ID '=' literal (','ID '=' literal)* ('WHERE' expression)?
 	;
 
 delete
-	: 'DELETE' 'FROM' ID 'WHERE' expression
+	: 'DELETE' 'FROM' ID ('WHERE' expression)?
 	;
 
 select

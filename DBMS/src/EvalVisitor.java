@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.Stack;
 
 import javax.script.ScriptEngine;
@@ -36,7 +37,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private HashMap<String, JSONObject> memoriaRef;
 	private JSONObject currentDataFile=null;
 	private boolean isCheck=false;
-	
+	private boolean tableID=false;
 	
 	public EvalVisitor(){
 		
@@ -119,7 +120,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(res.getTipo().equals("error")){
 			return res;
 		}
-		addCheck(currentConstraints, owner, ctx.ID().getText(), res.getResultado());
+		try {
+			addCheck(currentConstraints, owner, ctx.ID().getText(), res.getResultado());
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			return new Tipo("error",e.getMessage());
+		}
+		isCheck=false;
 		return new Tipo("void"); 
 	}
 	
@@ -306,7 +313,26 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		Tipo res2=  visit(ctx.unifactor());
 		
 		//checkeo de null
-		
+		if(res1==null&&res2==null){
+			ArrayList<String> nuevo =new ArrayList<String>();
+			nuevo.add(isCheck+"");
+			return new Tipo("BOOL",nuevo);
+		}
+		else if(res1==null){
+			if(!res2.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		else if(res2==null){
+			if(!res1.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		//flujo normal
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
@@ -319,6 +345,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		newExpr.addAll(res2.getResultado());
 		newExpr.add(ctx.rel_op().getText());
 		if(!res1.getTipo().equals(res2.getTipo())){
+			if (res1.getTipo().equals("INT")&&res2.getTipo().equals("FLOAT")){
+				return new Tipo("BOOL",newExpr); 
+			}
+			else if(res1.getTipo().equals("FLOAT")&&res2.getTipo().equals("INT")){
+				return new Tipo("BOOL",newExpr); 
+			}
 			return new Tipo("error","Incompatible types around "+ctx.rel_op().getText());
 		}
 		return new Tipo("BOOL",newExpr); 
@@ -350,6 +382,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { 
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
+		tableID=false;
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
@@ -371,9 +405,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 			columns.add(newColumn);
 		}
-		System.out.println(columns);
 		newTable.put("columns", columns);
 		currentColumns=columns;
+		currentDataFile=new JSONObject();
+		currentDataFile.put("entries", new JSONArray());
 		for(int i=0;i<ctx.constraintDecl().size();i++){
 			Tipo current=  visit(ctx.constraintDecl(i));
 			if(current.getTipo().equals("error")){
@@ -398,11 +433,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		//creacion y alteracion de archivos
 		JSONArray tables = (JSONArray) currentDataBase.get("tables");
+		System.out.println(currentDataBase);
 		tables.add(newTable);
 		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
-		JSONObject newFile=new JSONObject();
-		newFile.put("entries", new JSONArray());
-		createFile(baseDir+databaseName+"/"+owner+".json",newFile+"");
+		createFile(baseDir+databaseName+"/"+owner+".json",currentDataFile+"");
 		return new Tipo("void","Table "+owner+" created succesfully in "+databaseName);
 	}
 	/**
@@ -421,6 +455,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { 
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
+		tableID=false;
 		//revisar que se haya seleccionado una base de datos
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
@@ -556,18 +592,45 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitExpr21(@NotNull DDLGrammarParser.Expr21Context ctx) { 
 		Tipo res1=  visit(ctx.expr2());
+		Tipo res2=  visit(ctx.expr3());
+		//checkeo de null
+		if(res1==null&&res2==null){
+			ArrayList<String> nuevo =new ArrayList<String>();
+			nuevo.add(isCheck+"");
+			return new Tipo("BOOL",nuevo);
+		}
+		else if(res1==null){
+			if(!res2.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		else if(res2==null){
+			if(!res1.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		//flujo normal
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=  visit(ctx.expr3());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
 		newExpr.addAll(res2.getResultado());
 		newExpr.add(ctx.eq_op().getText());
 		if(!res1.getTipo().equals(res2.getTipo())){
+			if (res1.getTipo().equals("INT")&&res2.getTipo().equals("FLOAT")){
+				return new Tipo("BOOL",newExpr); 
+			}
+			else if(res1.getTipo().equals("FLOAT")&&res2.getTipo().equals("INT")){
+				return new Tipo("BOOL",newExpr); 
+			}
 			return new Tipo("error","Incompatible types around "+ctx.eq_op().getText());
 		}
 		return new Tipo("BOOL",newExpr); 
@@ -579,6 +642,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { 
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		//revisar si se ha seleccionado una base de datos
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
@@ -614,6 +678,21 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				constraints.remove(i);
 			}
 		}
+		JSONObject content = readJSON(baseDir+databaseFileName);
+		JSONArray databases= (JSONArray)content.get("databases");
+		for(int i=0;i<databases.size();i++){
+			JSONObject current = (JSONObject)databases.get(i);
+			if(databaseName.equals((String)current.get("name"))){
+				int conttables=(int)(long)(current.get("length"))-1;
+				databases.remove(i);
+				JSONObject newdata=new JSONObject();
+				newdata.put("name", databaseName);
+				newdata.put("length", conttables);
+				databases.add(newdata);
+				createFile(baseDir+databaseFileName,content+"");
+				break;
+			}
+		}
 		//escribir el archivo master.json y borrar el archivo de la tabla
 		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
 		eraseDirectory(baseDir+databaseName+"/"+ctx.ID().getText()+".json");
@@ -627,10 +706,26 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitConstraintDecl1(@NotNull DDLGrammarParser.ConstraintDecl1Context ctx) { 
 		ArrayList<String> ids=new ArrayList<String>();
+		JSONArray columnsToCheck=new JSONArray();
 		for(int i=1;i<ctx.ID().size();i++){
 			ids.add(ctx.ID(i).getText());
+			columnsToCheck.add(ctx.ID(i).getText());
 		}
 		try {
+			//checkear la unicidad de los valores
+			JSONArray entries=(JSONArray)currentDataFile.get("entries");
+			for(int i=0;i<entries.size();i++){
+				JSONObject tempTable = new JSONObject();
+				JSONArray tempEntries =new JSONArray();
+				tempEntries.addAll(entries.subList(0, i));
+				tempEntries.addAll(entries.subList(i+1, entries.size()));
+				//checkear la unicidad de la tabla sin el valor i
+				tempTable.put("entries", tempEntries);
+				if(!checkPrimaryKey(columnsToCheck, (JSONObject)entries.get(i), tempTable)){
+					return new Tipo("error","Tuple "+(JSONObject)entries.get(i)+" is not unique");
+				}
+			}
+			//agregar primary key
 			addPrimaryKey(currentConstraints, currentColumns, owner, ctx.ID(0).getText(), ids);
 			return new Tipo("void");
 		} catch (Exception e) {
@@ -877,12 +972,33 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitExpr11(@NotNull DDLGrammarParser.Expr11Context ctx) { 
 		Tipo res1=  visit(ctx.expr1());
+		Tipo res2=  visit(ctx.expr2());
+		//checkeo de null
+		if(res1==null&&res2==null){
+			ArrayList<String> nuevo =new ArrayList<String>();
+			nuevo.add(isCheck+"");
+			return new Tipo("BOOL",nuevo);
+		}
+		else if(res1==null){
+			if(!res2.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		else if(res2==null){
+			if(!res1.getTipo().equals("error")){
+				ArrayList<String> nuevo =new ArrayList<String>();
+				nuevo.add(isCheck+"");
+				return new Tipo("BOOL",nuevo);
+			}
+		}
+		//flujo normal
 		if(res1.getTipo().equals("error")){
 			return res1;
 		}
 		ArrayList<String> newExpr=new ArrayList<String>();
 		newExpr.addAll(res1.getResultado());
-		Tipo res2=  visit(ctx.expr2());
 		if(res2.getTipo().equals("error")){
 			return res2;
 		}
@@ -923,6 +1039,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitFactorID(@NotNull DDLGrammarParser.FactorIDContext ctx) { 
 		ArrayList<String> currentExpression=new ArrayList<String>();
 		currentExpression.add(ctx.getText());
+		//revisar si se permiten tableid
+		if(!tableID){
+			if(ctx.TABLEID()!=null){
+				return new Tipo("error","ID.ID is only allowed in Select");
+			}
+		}
 		for(int i=0;i<currentColumns.size();i++){
 			JSONObject current=(JSONObject)currentColumns.get(i);
 			if(ctx.ID().getText().equals((String)current.get("name"))){
@@ -975,6 +1097,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
+		tableID=false;
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
@@ -1106,6 +1229,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) { return visitChildren(ctx); }
 	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) {
+		tableID=false;
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
@@ -1156,7 +1280,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int contador = 0;
 		for(int i = 0; i<size; i++){
 			JSONObject tupla = (JSONObject)entries.get(i);
-			if (validar(expr, tupla,true)){
+			boolean result=false;
+			try{
+				result=validar(expr, tupla,true);
+			}catch(Exception e){
+				return new Tipo("error",e.getMessage());
+			}
+			if (result){
 				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
 					entries.remove(i);
@@ -1312,14 +1442,19 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		File path = new File(dir.toUpperCase());
 		if( path.exists() ) {
 			File[] files = path.listFiles();
-		    for(int i=0; i<files.length; i++) {
-		    	if(files[i].isDirectory()) {
-		    		eraseDirectory(files[i].getAbsolutePath());
-		    	}
-		    	else {
-		    		files[i].delete();
-		    	}
-		    }
+			if(files==null){
+				System.out.println("null");
+			}
+			else{
+			    for(int i=0; i<files.length; i++) {
+			    	if(files[i].isDirectory()) {
+			    		eraseDirectory(files[i].getAbsolutePath());
+			    	}
+			    	else {
+			    		files[i].delete();
+			    	}
+			    }
+			}
 		}
 		else{
 			System.out.println("path does not exist"+path);
@@ -1403,9 +1538,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	//agrega una primary key antes de llamar a este metodo es necesario verificar la existencia de de la tabla owner
 	public JSONArray addPrimaryKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> nombresID)throws Exception{
+		//revisar que no exista constraint de nombreC
 		for(int i=0;i<constraints.size();i++){
 			JSONObject currentC=(JSONObject)constraints.get(i);
-			if(nombreC.equals((String)currentC.get("nombreC"))){
+			if(nombreC.equals((String)currentC.get("name"))){
 				throw new Exception("Constraint with name "+nombreC+" already exists");
 			}
 			if(owner.equals((String)currentC.get("owner"))&&(currentC.get("primaryKey")!=null)){
@@ -1436,6 +1572,27 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	//agrega una foreign key antes de llamar a este metodo es necesario verificar la existencia de la tabla owner(si no es una tabla nueva)
 	public JSONArray addForeignKey(JSONArray constraints,JSONArray columnas,String owner,String nombreC,ArrayList<String> fromC,String references,ArrayList<String> toC)throws Exception{
+		//revisar que no exista una constraint nombre C
+		for(int i=0;i<constraints.size();i++){
+			JSONObject currentC=(JSONObject)constraints.get(i);
+			if(nombreC.equals((String)currentC.get("name"))){
+				throw new Exception("Constraint with name "+nombreC+" already exists");
+			}
+		}
+		//revisar que las columnas en fromc existan
+		for(int j=0;j<fromC.size();j++){
+			boolean found=false;
+			for(int i=0;i<columnas.size();i++){
+				JSONObject cActual=(JSONObject)columnas.get(i);
+				if(fromC.get(j).equals((String)cActual.get("name"))){
+					found=true;
+				}
+				
+			}
+			if(!found){
+				throw new Exception("Column "+fromC.get(j)+" does not exist in "+owner);
+			}
+		}
 		//revisar que exista la tabla a la que se le hace referencia
 		JSONArray tables=(JSONArray)readJSON(baseDir+databaseName+"/master.json").get("tables");
 		JSONArray referencedTable=null;
@@ -1450,7 +1607,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		
 		if(!foundT){
-			throw new Exception("Database "+references+" not found");
+			throw new Exception("Table "+references+" not found");
 		}
 		//ver que no exista nombre de constraint repetido
 		if(fromC.size()!=toC.size()){
@@ -1555,7 +1712,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 		//expression debe estar en post fix y el checkeo de tipos se hace en los visitor, la existencia de las columnas se hace en visitor
-		public JSONArray addCheck(JSONArray constraints,String owner,String nombreC, ArrayList<String> expression){
+		public JSONArray addCheck(JSONArray constraints,String owner,String nombreC, ArrayList<String> expression) throws Exception{
+			for(int i=0;i<constraints.size();i++){
+				JSONObject currentC=(JSONObject)constraints.get(i);
+				if(nombreC.equals((String)currentC.get("name"))){
+					throw new Exception("Constraint with name "+nombreC+" already exists");
+				}
+			}
 			JSONObject nuevo=new JSONObject();
 			nuevo.put("owner",owner);
 			nuevo.put("name",nombreC);
@@ -1721,7 +1884,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return false;
 	}
 	//null value se ingresa como false si se quiere que las expresiones que encuentren un null den como resulatdo un false
-	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue){
+	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue)throws Exception{
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
@@ -1855,7 +2018,42 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				String regex="[a-zA-Z](\\w)*(.[a-zA-Z](\\w)*)?";
 				//revisar si es id
 				if(var.matches(regex)){
-					temp.push((String)tuple.get(var));
+					if(var.contains(".")){
+						if(tuple.containsKey(var)){
+							temp.push((String)tuple.get(var));
+						}
+						else{
+							throw new Exception("ID "+var+" does not exist");
+						}
+					}
+					else{
+						if(tuple.containsKey(var)){
+							temp.push((String)tuple.get(var));
+							continue;
+						}
+						Set<String> keys = tuple.keySet();  //get all keys
+						String fkey="";
+						int count=0;
+						for(String j: keys){			
+							int index=j.indexOf(".");
+							if(index!=-1){
+								String checking=j.substring(index+1);
+								if(checking.equals(var)){
+									count++;
+									fkey=j;
+								}
+							}
+						}
+						if(count==0){
+							throw new Exception("ID "+var+" does not exist");
+						}
+						else if(count==1){
+							temp.push((String)tuple.get(fkey));
+						}
+						else{
+							throw new Exception("Duplicate ID "+var);
+						}
+					}
 				}
 				else{
 					temp.push(var);

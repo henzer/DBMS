@@ -1414,32 +1414,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int limRes = misRestricciones.size();
 		int contador = 0;
 		
-<<<<<<< HEAD
 		for(int i = 0; i<size; i++){
-=======
-		for(int i = 0; i<size; i++){
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 			JSONObject tupla = (JSONObject)entries.get(i);
-<<<<<<< HEAD
-			try {
-				if (sinWhere || validar(expr, tupla, false)){
-					System.out.println("Se eliminará: " + tupla);
-					if(limRes==0){
-=======
 			if (sinWhere || validar(expr, tupla, false)){
 				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
-					entries.remove(i);
-					size--;
-					i--;
-					contador++;
-				}
-				for(int j= 0; j<misRestricciones.size(); j++){
-					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
-					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
-					String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
-					if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 						entries.remove(i);
 						size--;
 						i--;
@@ -1459,22 +1438,23 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						}
 					}
 				}
-			} catch (Exception e) {
-				e.printStackTrace();
-				return new Tipo("error", e.getMessage());
-			}
 		}
-		
 		return new Tipo("void", "Se han eliminado " + contador + " filas exitosamente.");
 		
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
-		Tipo t1 = visit(ctx.from());
-		if(t1.isError())return t1;
-		
-		
-		return visitChildren(ctx);
+		//Tipo t1 = visit(ctx.from());
+		//if(t1.isError())return t1;
+		JSONObject resultado = readJSON(baseDir+databaseName+"/PERSONA.json");
+		JSONArray header = new JSONArray();
+		header.add("ID");
+		header.add("NOMBRE");
+		resultado.put("header", header);
+		Tipo t = new Tipo("void", "Resultados");
+		t.setRelacion(resultado);
+		return t;
+		//return visitChildren(ctx);
 	
 	}
 	@Override public Tipo visitPart_select(@NotNull DDLGrammarParser.Part_selectContext ctx) { 

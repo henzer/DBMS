@@ -1,5 +1,7 @@
 import java.io.File;
+import java.util.Iterator;
 
+import javax.swing.table.DefaultTableModel;
 import javax.swing.tree.TreeModel;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
@@ -7,6 +9,8 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.tree.gui.TreeViewer;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 
 public class ControladorDDL {
@@ -17,6 +21,14 @@ public class ControladorDDL {
 	private ParseTree tree;
 	private ParseTreeWalker walker;
 	private TreeViewer vista;
+	private boolean data;
+	private static DefaultTableModel modelo;
+	
+	
+	public ControladorDDL(){
+		data = false;
+		modelo = new DefaultTableModel();
+	}
 	
 	public String compilar(String texto){
 		input = new ANTLRInputStream(texto);
@@ -40,6 +52,12 @@ public class ControladorDDL {
 			//Revision Semantica
 			EvalVisitor visitador = new EvalVisitor();
 			Tipo t = (Tipo) visitador.visit(parser.statement());
+			
+			JSONObject resultado = t.getRelacion();
+			if(resultado!=null){
+				crearModelo(resultado);
+				data = true;
+			}
 			parser.reset();
 			return t.getMensaje();
 		}else{
@@ -47,5 +65,45 @@ public class ControladorDDL {
 		}
 		
 	}
+	
+	public void crearModelo(JSONObject resultado){
+		JSONArray entries = (JSONArray)resultado.get("entries");
+		JSONArray encabezado = (JSONArray)resultado.get("header");
+		
+		modelo = new DefaultTableModel();
+		int sizeH = encabezado.size();
+		for(int i=0; i<sizeH; i++){
+			modelo.addColumn(encabezado.get(i));
+			System.out.println(encabezado.get(i));
+		}
+		
+		Iterator<JSONObject> iterador = entries.iterator();
+		while(iterador.hasNext()){
+			JSONObject tupla = iterador.next();
+			Object [] row = new Object[sizeH];
+			for(int i=0; i<sizeH; i++){
+				row[i] = tupla.get(encabezado.get(i));
+			}
+			modelo.addRow(row);
+		}
+	}
+
+	public boolean isData() {
+		return data;
+	}
+
+	public void setData(boolean data) {
+		this.data = data;
+	}
+
+	public static DefaultTableModel getModelo() {
+		return modelo;
+	}
+
+	public static void setModelo(DefaultTableModel modelo) {
+		ControladorDDL.modelo = modelo;
+	}
+	
+	
 
 }

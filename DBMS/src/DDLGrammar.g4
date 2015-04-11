@@ -195,7 +195,7 @@ delete
 	;
 
 select
-	: 'SELECT' part_select  'FROM' from  'WHERE' where ('ORDER' 'BY' order_by)?
+	: 'SELECT' part_select  'FROM' from  ('WHERE' where)? ('ORDER' 'BY' order_by)?
 	;
 	
 part_select:

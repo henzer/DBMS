@@ -45,3 +45,8 @@ master.json
 	"constraints":[{"owner":nombreowner,"name":nombreconstraint,"primaryKey":{[nombrecolumna,...]},"foreignKey":{"columns":[nombrecolumna,...],"table":nombretabla,"references":[nombrecolumna,...]},"check":[]}]
 }
 tabla.json
+
+
+PARA MOSTRAR LA INFORMACION TIENE QUE TENER LAS SIGUIENTE ESTRUCTURA:
+
+{"entries": [], "header":[]}

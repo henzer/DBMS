@@ -39,6 +39,7 @@ import javax.swing.SwingConstants;
 
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import javax.swing.JTable;
 
 
 public class IDE extends JFrame {
@@ -46,6 +47,7 @@ public class IDE extends JFrame {
 	private JPanel contentPane;
 	private JTree treeBD;
 	private ControladorDDL controlDDL;
+	private JTable table;
 	
 	public IDE() {
 		controlDDL = new ControladorDDL();
@@ -67,11 +69,14 @@ public class IDE extends JFrame {
 		txtDDL.setTabSize(4);
 		scrollPane.setViewportView(txtDDL);
 		
-		JScrollPane scrollPane_1 = new JScrollPane();
-		tabbedPane.addTab("DML", null, scrollPane_1, null);
+		table = new JTable();
+
+		JScrollPane spnData = new JScrollPane();
+		spnData.setViewportView(table);
+		tabbedPane.addTab("Data", null, spnData, null);
 		
-		JTextArea txtDML = new JTextArea();
-		scrollPane_1.setViewportView(txtDML);
+		JScrollPane scrollPane_1 = new JScrollPane();
+		tabbedPane.addTab("Otros", null, scrollPane_1, null);
 		
 		
 		JScrollPane scrollPane_2 = new JScrollPane();
@@ -90,9 +95,16 @@ public class IDE extends JFrame {
 				if(tabbedPane.getSelectedIndex()==0){
 					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
 					txtConsola.setText(mensaje);
+					
+					if(controlDDL.isData()){
+						table.setModel(controlDDL.getModelo());
+						tabbedPane.setSelectedIndex(1);
+						
+					}
+					
 				}else{
-					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
-					txtConsola.setText(mensaje);
+					tabbedPane.setSelectedIndex(0);
+					JOptionPane.showMessageDialog(null, "Debe estar en esta pestaña para poder COMPILAR");
 				}
 				
 				//Se modifica el arbol
@@ -108,11 +120,7 @@ public class IDE extends JFrame {
 		JButton btnAbrir = new JButton("Abrir");
 		btnAbrir.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
-				if(tabbedPane.getSelectedIndex()==0){
-					txtDDL.setText(abrirArchivo());
-				}else{
-					txtDML.setText(abrirArchivo());
-				}
+				txtDDL.setText(abrirArchivo());
 			}
 		});
 		

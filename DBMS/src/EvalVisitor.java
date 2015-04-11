@@ -408,11 +408,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitCreateTable(@NotNull DDLGrammarParser.CreateTableContext ctx) { 
-		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		tableID=false;
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		owner=ctx.ID(0).getText();
 		currentConstraints=(JSONArray)currentDataBase.get("constraints");
 		if(!checkTableName(owner,currentDataBase)){
@@ -459,7 +459,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		//creacion y alteracion de archivos
 		JSONArray tables = (JSONArray) currentDataBase.get("tables");
-		System.out.println(currentDataBase);
 		tables.add(newTable);
 		createFile(baseDir+databaseName+"/master.json",currentDataBase+"");
 		createFile(baseDir+databaseName+"/"+owner+".json",currentDataFile+"");
@@ -481,12 +480,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitAlterTableAccion(@NotNull DDLGrammarParser.AlterTableAccionContext ctx) { 
-		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		tableID=false;
 		//revisar que se haya seleccionado una base de datos
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		//inicializacion
 		currentConstraints=(JSONArray)currentDataBase.get("constraints");
 		//obtener columnas y verificacion de la existencia de la tabla
@@ -668,11 +667,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitDropTable(@NotNull DDLGrammarParser.DropTableContext ctx) { 
-		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		//revisar si se ha seleccionado una base de datos
 		if(currentDataBase==null){
 			return new Tipo("error","No database selected");
 		}
+		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		//revisar si existe la tabla
 		JSONArray tables = (JSONArray)currentDataBase.get("tables");
 		JSONArray constraints=(JSONArray)currentDataBase.get("constraints");
@@ -825,7 +824,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitExpression2(@NotNull DDLGrammarParser.Expression2Context ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitExpression2(@NotNull DDLGrammarParser.Expression2Context ctx) { 
+		Tipo res=visit(ctx.expr1());
+		ArrayList<String> newExpr=res.getResultado();
+		if(!res.getTipo().equals("error")){
+			for(int i=0;i<newExpr.size();i++){
+				System.out.println(newExpr.get(i));
+			}
+		}
+		return res;
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -855,6 +863,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 		newExpr.addAll(res2.getResultado());
 		newExpr.add(ctx.cond_op2().getText());
+		String resultado="";
+		for(int i=0;i<newExpr.size();i++){
+			System.out.println(newExpr.get(i));
+		}
 		if((!res1.getTipo().equals("BOOL"))||(!res2.getTipo().equals("BOOL"))){
 			return new Tipo("error","Incompatible types around "+ctx.cond_op2().getText());
 		}
@@ -1066,31 +1078,62 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitFactorID(@NotNull DDLGrammarParser.FactorIDContext ctx) { 
 		ArrayList<String> currentExpression=new ArrayList<String>();
-		currentExpression.add(ctx.getText());
+		String alias=ctx.getText();
 		//revisar si se permiten tableid
-		/*if(!tableID){
+		if(!tableID){
 			if(ctx.TABLEID()!=null){
 				return new Tipo("error","ID.ID is only allowed in Select");
 			}
-		}*/
+		}
+		
+		Tipo resultado=null;
+		//revisar si existe el nombre explicito
 		for(int i=0;i<currentColumns.size();i++){
 			JSONObject current=(JSONObject)currentColumns.get(i);
-			if(ctx.ID().getText().equals((String)current.get("name"))){
+			String columnName=(String)current.get("name");
+			if(alias.equals(columnName)){
+				currentExpression.add(alias);
+				resultado=new Tipo((String)current.get("type"),currentExpression);
 				if("CHAR".equals((String)current.get("type"))){
-					Tipo resultado=new Tipo((String)current.get("type"),currentExpression); 
 					resultado.setLength(Integer.parseInt(current.get("length").toString()));
-					return resultado;
 				}
-				return new Tipo((String)current.get("type"),currentExpression);
+				return resultado;
 			}
+			
 		}
-		return new Tipo("error","Column "+ctx.ID()+" does not exist in "+owner); 
+		//revisar que este contenido en id.id
+		currentExpression=new ArrayList<String>();
+		int count=0;
+		String newName="";
+		for(int i=0;i<currentColumns.size();i++){
+			JSONObject current=(JSONObject)currentColumns.get(i);
+			String columnName=(String)current.get("name");
+			String checking=columnName.substring(columnName.indexOf(".")+1);
+			if(alias.equals(checking)){
+				resultado=new Tipo((String)current.get("type"),currentExpression);
+				if("CHAR".equals((String)current.get("type"))){
+					resultado.setLength(Integer.parseInt(current.get("length").toString()));
+				}
+				newName=columnName;
+				count++;
+			}
+			
+		}
+		if(count==0){
+			return new Tipo("error","Column "+ctx.ID()+" does not exist in relation");
+		}
+		else if(count==1){
+			currentExpression.add(newName);
+			return resultado;
+		}
+		else{
+			return new Tipo("error","Ambiguos reference for "+alias);
+		}
 	}
 	
 	//Metodos para el DML*******************************************************************
 	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) {
 		memoria = new HashMap<String, JSONObject>();
-		System.out.println("hola");
 		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		int contador = 0;
 		for(DDLGrammarParser.InsertContext insert : ctx.insert()){
@@ -1449,6 +1492,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
+		tableID=true;
 		Tipo t1 = visit(ctx.from());
 		if(t1.isError())return t1;
 		
@@ -1466,25 +1510,30 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		//revisar la existencia de las tablas
 		for(int i=0;i<ctx.ID().size();i++){
 			String actual=ctx.ID(i).getText();
+			boolean found=false;
 			for(int j=0;j<tablas.size();j++){
 				JSONObject tablaActual=(JSONObject)tablas.get(j);
 				if(actual.equals((String)tablaActual.get("name"))){
 					JSONArray columnas = (JSONArray)tablaActual.get("columns");
+					found=true;
 					for(int k=0;k<columnas.size();k++){
 						JSONObject currentC=(JSONObject)columnas.get(k);
 						JSONObject nuevo = new JSONObject();
 						nuevo.put("name", ctx.ID(i).getText()+"."+currentC.get("name"));
 						nuevo.put("type", currentC.get("type"));
 						if(currentC.containsKey("length")){
-							nuevo.put("length", (int)(long)currentC.get("length"));
+							nuevo.put("length", Integer.parseInt(currentC.get("length")+""));
 						}
 						currentColumns.add(nuevo);
 					}
-				}
-				break;
+					break;
+				}				
+			}
+			if(!found){
+				return new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
 			}
 		}
-		return visitChildren(ctx);
+		return new Tipo ("void");
 		
 	}
 	@Override public Tipo visitWhere(@NotNull DDLGrammarParser.WhereContext ctx) { return visitChildren(ctx);}
@@ -1540,7 +1589,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	public void createFile(String dir,String content){
 		FileWriter file=null;
 		try {
-			System.out.println(dir);
 			file = new FileWriter(dir,false);
 			file.write(content);
 		} catch (IOException e) {
@@ -2162,42 +2210,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				String regex="[a-zA-Z](\\w)*(.[a-zA-Z](\\w)*)?";
 				//revisar si es id
 				if(var.matches(regex)){
-					if(var.contains(".")){
-						if(tuple.containsKey(var)){
-							temp.push((String)tuple.get(var));
-						}
-						else{
-							//throw new Exception("ID "+var+" does not exist");
-						}
-					}
-					else{
-						if(tuple.containsKey(var)){
-							temp.push((String)tuple.get(var));
-							continue;
-						}
-						Set<String> keys = tuple.keySet();  //get all keys
-						String fkey="";
-						int count=0;
-						for(String j: keys){			
-							int index=j.indexOf(".");
-							if(index!=-1){
-								String checking=j.substring(index+1);
-								if(checking.equals(var)){
-									count++;
-									fkey=j;
-								}
-							}
-						}
-						if(count==0){
-							//throw new Exception("ID "+var+" does not exist");
-						}
-						else if(count==1){
-							temp.push((String)tuple.get(fkey));
-						}
-						else{
-							//throw new Exception("Duplicate ID "+var);
-						}
-					}
+					temp.push((String)tuple.get("var"));
 				}
 				else{
 					temp.push(var);

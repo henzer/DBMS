@@ -1314,40 +1314,46 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int contador = 0;
 		for(int j= 0; j<size; j++){
 			JSONObject tupla = (JSONObject)entries.get(j);
-			if(sinWhere || validar(expr, tupla, false)){
+			try {
+				if(sinWhere || validar(expr, tupla, false)){
 
-				//Restricciones delete
-				boolean bandera;
-				for(int l= 0; l<sizeListFKRef; l++){
-					bandera = true;
-					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("references");
-					for(String key: values.keySet()){
-						if(fkLocal.contains(key)){
-							bandera = false;
-							break;
+					//Restricciones delete
+					boolean bandera;
+					for(int l= 0; l<sizeListFKRef; l++){
+						bandera = true;
+						JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("references");
+						for(String key: values.keySet()){
+							if(fkLocal.contains(key)){
+								bandera = false;
+								break;
+							}
 						}
+						if(bandera)continue;
+						JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("columns");
+						String tablaRef = ((JSONObject)listFKRef.get(l)).get("owner").toString();
+						if(checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef)))
+							return new Tipo("error", "ERROR.-No puede modificarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)listFKRef.get(l)).get("name"));
 					}
-					if(bandera)continue;
-					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("columns");
-					String tablaRef = ((JSONObject)listFKRef.get(l)).get("owner").toString();
-					if(checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef)))
-						return new Tipo("error", "ERROR.-No puede modificarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)listFKRef.get(j)).get("name"));
+					
+					entries.remove(tupla);
+					for(String key: values.keySet()){
+						tupla.put(key, values.get(key));
+					}
+					
+					//Restricciones Insert
+					try {
+						insert(tupla, relacion, tabla);
+						j--;
+						size--;
+						contador++;
+					} catch (Exception e) {
+						return new Tipo("error", e.getMessage());
+					}
+					
 				}
-				
-				entries.remove(tupla);
-				for(String key: values.keySet()){
-					tupla.put(key, values.get(key));
-				}
-				
-				//Restricciones Insert
-				try {
-					insert(tupla, relacion, tabla);
-					i--;
-					size--;
-					contador++;
-				} catch (Exception e) {
-					return new Tipo("error", e.getMessage());
-				}
+			} catch (Exception e) {
+				e.printStackTrace();
+				return new Tipo("error", e.getMessage());
 				
 			}
 			
@@ -1409,50 +1415,34 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int contador = 0;
 		
 		for(int i = 0; i<size; i++){
-<<<<<<< HEAD
 			JSONObject tupla = (JSONObject)entries.get(i);
-			if (sinWhere || validar(expr, tupla, false)){
-=======
-			JSONObject tupla = (JSONObject)entries.get(i);
-			boolean result=false;
-			try{
-				result=validar(expr, tupla,true);
-			}catch(Exception e){
-				return new Tipo("error",e.getMessage());
-			}
-			if (result){
->>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
-				System.out.println("Se eliminará: " + tupla);
-				if(limRes==0){
-					entries.remove(i);
-					size--;
-					i--;
-					contador++;
-				}
-				for(int j= 0; j<misRestricciones.size(); j++){
-					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
-					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
-					String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
-					if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
+			try {
+				if (sinWhere || validar(expr, tupla, false)){
+					System.out.println("Se eliminará: " + tupla);
+					if(limRes==0){
 						entries.remove(i);
 						size--;
 						i--;
 						contador++;
-					}else{
-						return new Tipo("error", "ERROR.-No puede eliminarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)misRestricciones.get(j)).get("name"));
+					}
+					for(int j= 0; j<misRestricciones.size(); j++){
+						JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
+						JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
+						String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
+						if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
+							entries.remove(i);
+							size--;
+							i--;
+							contador++;
+						}else{
+							return new Tipo("error", "ERROR.-No puede eliminarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)misRestricciones.get(j)).get("name"));
+						}
 					}
 				}
-			}
-			
-			/*try {
-				Object result = engine.eval(tupla.get("PRENDA")+"=='CAMISA'");
-				System.out.println(tupla.get("PRENDA")+"=='Camisa': " + result);
-				if(result.toString().equals("true")){
-					System.out.println("Se eliminará: " + tupla);
-				}
-			} catch (ScriptException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
-			}*/
+				return new Tipo("error", e.getMessage());
+			}
 		}
 		
 		return new Tipo("void", "Se han eliminado " + contador + " filas exitosamente.");

@@ -60,7 +60,8 @@ public class ControladorDDL {
 			}
 			parser.reset();
 			return t.getMensaje();
-		}else{
+		}
+		else{
 			return e.getMessage();
 		}
 		
@@ -73,7 +74,8 @@ public class ControladorDDL {
 		modelo = new DefaultTableModel();
 		int sizeH = encabezado.size();
 		for(int i=0; i<sizeH; i++){
-			modelo.addColumn(encabezado.get(i));
+			JSONObject actual=(JSONObject)encabezado.get(i);
+			modelo.addColumn(actual.get("name")+" - "+actual.get("type"));
 			System.out.println(encabezado.get(i));
 		}
 		
@@ -82,7 +84,8 @@ public class ControladorDDL {
 			JSONObject tupla = iterador.next();
 			Object [] row = new Object[sizeH];
 			for(int i=0; i<sizeH; i++){
-				row[i] = tupla.get(encabezado.get(i));
+				JSONObject actual=(JSONObject)encabezado.get(i);
+				row[i] = tupla.get(actual.get("name"));
 			}
 			modelo.addRow(row);
 		}

@@ -585,7 +585,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { 
+		System.out.println("hola");
+		return visitChildren(ctx); 
+	}
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1178,7 +1181,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return t;
 	}
 	
-	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { return visitChildren(ctx); }
+	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { 
+		Tipo resultado=null;
+		for(int i=0;i<ctx.select().size();i++){
+			resultado=visit(ctx.select(i));
+			if(resultado.isError()){
+				return resultado;
+			}
+		}
+		return resultado;
+	}
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
 		tableID=false;
@@ -1493,23 +1505,137 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
 		tableID=true;
+		//checkeo de from
 		Tipo t1 = visit(ctx.from());
 		if(t1.isError())return t1;
+		//checko de part_select
+		Tipo campos=visit(ctx.part_select());
+		if(campos.isError()){
+			return campos;
+		}
 		
+		//checko de where
+		Tipo expression=null;
+		if(ctx.where()!=null){
+			expression =visit(ctx.where());
+			if(expression.isError()){
+				return expression;
+			}
+		}
+		ArrayList<String> tablas =t1.getResultado();
+		//creacion de tuplas y chequeo de tuplas
+		JSONArray entries = new JSONArray();
+		for(int i=0;i<tablas.size();i++){
+			String cName=tablas.get(i);
+			if(i==0){
+				JSONObject currentT=getRelationFromMemory(tablas.get(i));
+				JSONArray data=(JSONArray)currentT.get("entries");
+				//sirve para agregar tabla. a cada elemento de la tupla
+				for(int j=0;j<data.size();j++){
+					entries.add(generarTupla(new JSONObject(),(JSONObject)data.get(j),cName));
+				}
+			}
+			else{
+				//informacion para poder hacer el producto
+				JSONObject currentT=getRelationFromMemory(tablas.get(i));
+				JSONArray data=(JSONArray)currentT.get("entries");
+				JSONArray temp=new JSONArray();
+				for(int j=0;j<entries.size();j++){
+					for(int k=0;k<data.size();k++){
+						JSONObject resultado=generarTupla((JSONObject)entries.get(j),(JSONObject)data.get(k),cName);
+						if(i!=tablas.size()-1){
+							temp.add(resultado);
+						}
+						else{
+							//evaluacion de where
+							if(expression!=null){
+								if(validar(expression.getResultado(), resultado, false)){
+									temp.add(resultado);
+								}
+							}
+							//filtrado eliminacion de columnas innecesarias
+							ArrayList<String> requested=campos.getResultado();
+							if(requested.size()!=0){
+								JSONObject nuevo=new JSONObject();
+								for(int z=0;z<requested.size();z++){
+									nuevo.put(requested.get(z), resultado.get(requested.get(z)));
+								}
+								resultado=nuevo;
+							}
+						}
+						
+					}
+				}
+				entries=temp;
+			}
+		}
+		//ordenamiento de resultado falta
 		
-		return visitChildren(ctx);
+		//preparandose para el retorno
+		if(ctx.order_by()!=null){
+			Tipo order=visit(ctx.order_by());
+		}
+		JSONObject resultados=new JSONObject();
+		resultados.put("headers", currentColumns.clone());
+		resultados.put("entries", resultados);
+		Tipo returnValue=new Tipo("void");
+		returnValue.getRelacion();
+		return returnValue;
 	
 	}
 	@Override public Tipo visitPart_select(@NotNull DDLGrammarParser.Part_selectContext ctx) { 
-
-		return visitChildren(ctx);
+		if(ctx.getText().equals("*")){
+			return new Tipo("void");
+		}
+		else{
+			ArrayList<String> resultado=new ArrayList<String>();
+			for(int i=0;i<ctx.ID().size();i++){
+				String alias=ctx.ID(i).getText();
+				//revisar si existe el nombre explicito
+				for(int j=0;j<currentColumns.size();j++){
+					JSONObject current=(JSONObject)currentColumns.get(j);
+					String columnName=(String)current.get("name");
+					if(alias.equals(columnName)){
+						resultado.add(alias);
+					}
+					
+				}
+				//revisar que este contenido en id.id
+				int count=0;
+				String newName="";
+				for(int j=0;j<currentColumns.size();j++){
+					JSONObject current=(JSONObject)currentColumns.get(j);
+					String columnName=(String)current.get("name");
+					String checking=columnName.substring(columnName.indexOf(".")+1);
+					if(alias.equals(checking)){
+						newName=columnName;
+						count++;
+					}
+					
+				}
+				if(count==0){
+					return new Tipo("error","Column "+ctx.ID()+" does not exist in relation");
+				}
+				else if(count==1){
+					resultado.add(newName);
+				}
+				else{
+					return new Tipo("error","Ambiguos reference for "+alias);
+				}
+			}
+			return new Tipo("void",resultado);
+		}
+		
 	}
 	@Override public Tipo visitFrom(@NotNull DDLGrammarParser.FromContext ctx) { 
 		currentColumns=new JSONArray();
 		JSONArray tablas=(JSONArray)currentDataBase.get("tables");
+		ArrayList<String> resultado=new ArrayList<String>();
+		
 		//revisar la existencia de las tablas
 		for(int i=0;i<ctx.ID().size();i++){
 			String actual=ctx.ID(i).getText();
+			resultado.add(actual);
 			boolean found=false;
 			for(int j=0;j<tablas.size();j++){
 				JSONObject tablaActual=(JSONObject)tablas.get(j);
@@ -1530,7 +1656,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}				
 			}
 			if(!found){
-				return new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
+				Tipo res=new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
+				res.addResultado(resultado);
+				return res;
 			}
 		}
 		return new Tipo ("void");
@@ -2359,6 +2487,19 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		((JSONArray)relacion.get("entries")).add(nueva);
+	}
+	//table1 contiene todas las entradas
+	public JSONObject generarTupla(JSONObject table1,JSONObject table2,String name2){
+		JSONObject result= new JSONObject();
+		result.putAll(table1);
+		Set<String> keys=table2.keySet();
+		Iterator iter=keys.iterator();
+		while(iter.hasNext()){
+			String keyA=(String)iter.next();
+			result.put(name2+"."+keyA, table2.get(keyA));
+		}
+		
+		return result;
 	}
 	
 }

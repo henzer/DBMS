@@ -6,7 +6,7 @@ public class Tipo{
 	private int length;
 	private String mensaje;
 	private JSONObject relacion;
-	private ArrayList<String> resultado;
+	private ArrayList<String> resultado=null;
 	
 	
 	public Tipo(String tipo) {

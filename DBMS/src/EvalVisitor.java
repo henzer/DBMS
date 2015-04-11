@@ -2144,6 +2144,3 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 
 	}
 }
-
-
-

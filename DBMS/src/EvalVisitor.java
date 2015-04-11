@@ -1414,12 +1414,32 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int limRes = misRestricciones.size();
 		int contador = 0;
 		
+<<<<<<< HEAD
 		for(int i = 0; i<size; i++){
+=======
+		for(int i = 0; i<size; i++){
+>>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 			JSONObject tupla = (JSONObject)entries.get(i);
+<<<<<<< HEAD
 			try {
 				if (sinWhere || validar(expr, tupla, false)){
 					System.out.println("Se eliminará: " + tupla);
 					if(limRes==0){
+=======
+			if (sinWhere || validar(expr, tupla, false)){
+				System.out.println("Se eliminará: " + tupla);
+				if(limRes==0){
+					entries.remove(i);
+					size--;
+					i--;
+					contador++;
+				}
+				for(int j= 0; j<misRestricciones.size(); j++){
+					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
+					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
+					String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
+					if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
+>>>>>>> branch 'master' of https://github.com/henzer/DBMS.git
 						entries.remove(i);
 						size--;
 						i--;
@@ -2009,7 +2029,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return false;
 	}
 	//null value se ingresa como false si se quiere que las expresiones que encuentren un null den como resulatdo un false
-	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue)throws Exception{
+	public boolean validar (ArrayList<String> input,JSONObject tuple,boolean nullValue){
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
@@ -2148,7 +2168,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 							temp.push((String)tuple.get(var));
 						}
 						else{
-							throw new Exception("ID "+var+" does not exist");
+							//throw new Exception("ID "+var+" does not exist");
 						}
 					}
 					else{
@@ -2170,13 +2190,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 							}
 						}
 						if(count==0){
-							throw new Exception("ID "+var+" does not exist");
+							//throw new Exception("ID "+var+" does not exist");
 						}
 						else if(count==1){
 							temp.push((String)tuple.get(fkey));
 						}
 						else{
-							throw new Exception("Duplicate ID "+var);
+							//throw new Exception("Duplicate ID "+var);
 						}
 					}
 				}
@@ -2249,6 +2269,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return true;
 
 	}
+
 	
 	public JSONObject getRelationFromMemory(String name){
 		JSONObject relacion;

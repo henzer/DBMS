@@ -69,7 +69,7 @@ public class ControladorDDL {
 	
 	public void crearModelo(JSONObject resultado){
 		JSONArray entries = (JSONArray)resultado.get("entries");
-		JSONArray encabezado = (JSONArray)resultado.get("header");
+		JSONArray encabezado = (JSONArray)resultado.get("headers");
 		
 		modelo = new DefaultTableModel();
 		int sizeH = encabezado.size();
@@ -78,7 +78,7 @@ public class ControladorDDL {
 			modelo.addColumn(actual.get("name")+" - "+actual.get("type"));
 			System.out.println(encabezado.get(i));
 		}
-		
+		System.out.println(entries);
 		Iterator<JSONObject> iterador = entries.iterator();
 		while(iterador.hasNext()){
 			JSONObject tupla = iterador.next();

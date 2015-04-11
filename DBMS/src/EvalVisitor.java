@@ -587,7 +587,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 */
 	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { 
 		System.out.println("hola");
-		return visitChildren(ctx); 
+		Tipo res=visitChildren(ctx);
+		System.out.println(res);
+		return res; 
 	}
 	/**
 	 * {@inheritDoc}
@@ -1543,6 +1545,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				for(int j=0;j<entries.size();j++){
 					for(int k=0;k<data.size();k++){
 						JSONObject resultado=generarTupla((JSONObject)entries.get(j),(JSONObject)data.get(k),cName);
+						System.out.println(resultado);
 						if(i!=tablas.size()-1){
 							temp.add(resultado);
 						}
@@ -1552,6 +1555,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 								if(validar(expression.getResultado(), resultado, false)){
 									temp.add(resultado);
 								}
+							}
+							else{
+								temp.add(resultado);
 							}
 							//filtrado eliminacion de columnas innecesarias
 							ArrayList<String> requested=campos.getResultado();
@@ -1577,9 +1583,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		}
 		JSONObject resultados=new JSONObject();
 		resultados.put("headers", currentColumns.clone());
-		resultados.put("entries", resultados);
-		Tipo returnValue=new Tipo("void");
-		returnValue.getRelacion();
+		resultados.put("entries", entries);
+		Tipo returnValue=new Tipo("select");
+		returnValue.setRelacion(resultados);;
 		return returnValue;
 	
 	}
@@ -1657,11 +1663,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 			if(!found){
 				Tipo res=new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
-				res.addResultado(resultado);
 				return res;
 			}
 		}
-		return new Tipo ("void");
+		return new Tipo ("void",resultado);
 		
 	}
 	@Override public Tipo visitWhere(@NotNull DDLGrammarParser.WhereContext ctx) { return visitChildren(ctx);}
@@ -2208,6 +2213,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		Stack<String> temp=new Stack<String>();
 		for(int i=0;i<input.size();i++){
 			String actual = input.get(i);
+			System.out.println(temp+" var"+actual);
 			//revisar si es operador
 			//operador and
 			if(actual.equals("AND")){
@@ -2338,7 +2344,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				String regex="[a-zA-Z](\\w)*(.[a-zA-Z](\\w)*)?";
 				//revisar si es id
 				if(var.matches(regex)){
-					temp.push((String)tuple.get("var"));
+					temp.push((String)tuple.get(actual));
 				}
 				else{
 					temp.push(var);

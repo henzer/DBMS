@@ -48,6 +48,7 @@ public class ControladorDDL {
 		//Revision Lexica y Sintactica
 		parser.statement();
 		if(!e.isError()){
+			data = false;
 			parser.reset();
 			//Revision Semantica
 			EvalVisitor visitador = new EvalVisitor();

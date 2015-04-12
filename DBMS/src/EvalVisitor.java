@@ -43,6 +43,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private SimpleDateFormat formatoFecha;
 	private long starttime=0;
 	private boolean tableID=false;
+	private ArrayList<Criterion> criterios;
+	
 	public EvalVisitor(){
 		
 		File filep = new File(baseDir+databaseFileName);
@@ -59,7 +61,8 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		memoriaRef = new HashMap<String, JSONObject>();
 		
 		//Se inicializa el comprobador de tipos
-		new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+		formatoFecha = new SimpleDateFormat("yyyy-MM-dd");
+		formatoFecha.setLenient(false);
 		
 		//Se agregan los tipos de datos primitivos a la tabla de tipos.
 		tablaTipos.agregar("INT", 11);
@@ -1246,22 +1249,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 			int limite = ctx.literal().size();
 			for(int i=0; i<limite; i++){
+				//Se obtiene el valor a insertar
 				String value = ctx.literal(i).getText();
-				
+				//Se obtienen los dos tipos para poder compararlos
 				Tipo t1 = visit(ctx.literal(i));
-				String t2 = ((JSONObject)columns.get(i)).get("type").toString();
-				if(!t1.getTipo().equals(t2)){
-					if(!(t2.equals("FLOAT") && t1.getTipo().equals("INT")))
-						return new Tipo("error", "ERROR.-No coincide el tipo de la columna " + ((JSONObject)columns.get(i)).get("name").toString() + " con el tipo ingresado.");
-					else
-						value = value + ".0";
-				}else if (t1.getTipo().equals("CHAR")){
-					int length = Integer.parseInt(((JSONObject)columns.get(i)).get("length").toString());
-					if(length<t1.getLength()){
-						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + ((JSONObject)columns.get(i)).get("name").toString() + "(" + length +")");
-					}
+				JSONObject t2 =(JSONObject)columns.get(i);
+				
+				try {
+					//Se intenta castear ambos valores.
+					value = castTypes(t2, t1, value);
+					nueva.put(((JSONObject)columns.get(i)).get("name"), value);
+				} catch (Exception e) {
+					e.printStackTrace();
+					return new Tipo("error", e.getMessage());
 				}
-				nueva.put(((JSONObject)columns.get(i)).get("name"), value);
 			}
 			
 		}else{
@@ -1508,16 +1509,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					}
 				}
 			}
-			
-			/*try {
-				Object result = engine.eval(tupla.get("PRENDA")+"=='CAMISA'");
-				System.out.println(tupla.get("PRENDA")+"=='Camisa': " + result);
-				if(result.toString().equals("true")){
-					System.out.println("Se eliminará: " + tupla);
-				}
-			} catch (ScriptException e) {
-				e.printStackTrace();
-			}*/
 		}
 		
 		return new Tipo("void", "Deleted " + contador + " entries in "+end());
@@ -1554,7 +1545,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				JSONArray data=(JSONArray)currentT.get("entries");
 				//sirve para agregar tabla. a cada elemento de la tupla
 				for(int j=0;j<data.size();j++){
-					entries.add(generarTupla(new JSONObject(),(JSONObject)data.get(j),cName));
+					JSONObject tuple = generarTupla(new JSONObject(),(JSONObject)data.get(j),cName);
+					if(ctx.where()==null || validar(expression.getResultado(), tuple, false)){
+						entries.add(tuple);
+					}
 				}
 			}
 			else{
@@ -1595,12 +1589,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				entries=temp;
 			}
 		}
-		//ordenamiento de resultado falta
-		
 		//preparandose para el retorno
 		if(ctx.order_by()!=null){
 			Tipo order=visit(ctx.order_by());
+			if(order.isError())return order;
+			entries.sort(new JSONComparator(criterios));
 		}
+		
 		JSONObject resultados=new JSONObject();
 		resultados.put("headers", currentColumns.clone());
 		resultados.put("entries", entries);
@@ -1690,7 +1685,62 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 	}
 	@Override public Tipo visitWhere(@NotNull DDLGrammarParser.WhereContext ctx) { return visitChildren(ctx);}
-	@Override public Tipo visitOrder_by(@NotNull DDLGrammarParser.Order_byContext ctx) { return visitChildren(ctx);}
+	@Override public Tipo visitOrder_by(@NotNull DDLGrammarParser.Order_byContext ctx) {
+		criterios = new ArrayList<Criterion>();
+		Tipo t = visitChildren(ctx);
+		return t;
+		
+	}
+	@Override public Tipo visitCriterion(@NotNull DDLGrammarParser.CriterionContext ctx) {
+		//Comprobar que exista el TABLA.ID
+		System.out.println("currentColumns: " + currentColumns);
+		if(ctx.TABLEID()!=null){
+			String id = ctx.TABLEID().getText();
+			
+			for(int i= 0; i<currentColumns.size();i++){
+				JSONObject current=(JSONObject)currentColumns.get(i);
+				if(!current.get("name").equals(id))
+					continue;
+				int order = -1;
+				if(ctx.ASC()!=null)
+					order = 1;
+				criterios.add(new Criterion(id, order, current.get("type").toString()));
+				return new Tipo("void");
+			}
+			return new Tipo("error", "Column "+ctx.ID()+" does not exist in relation");
+			
+		}else{
+			String alias = ctx.ID().getText();
+			//revisar que este contenido en id.id
+			int count=0;
+			String newName="";
+			String type="";
+			for(int j=0;j<currentColumns.size();j++){
+				JSONObject current=(JSONObject)currentColumns.get(j);
+				String columnName=(String)current.get("name");
+				String checking=columnName.substring(columnName.indexOf(".")+1);
+				if(alias.equals(checking)){
+					newName=columnName;
+					type = current.get("type").toString();
+					count++;
+				}
+				
+			}
+			if(count==0){
+				return new Tipo("error","Column "+ctx.ID()+" does not exist in relation");
+			}
+			else if(count==1){
+				int order = -1;
+				if(ctx.ASC()!=null)
+					order = 1;
+				criterios.add(new Criterion(newName, order, type));
+				return new Tipo("void");
+			}
+			else{
+				return new Tipo("error","Ambiguos reference for "+alias);
+			}
+		}
+	}
 
 	
 	
@@ -2462,20 +2512,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}else if(t1.equals("DATE")){
 				try{
-					formatoFecha.setLenient(false);
 					formatoFecha.parse(value);
 				}catch(Exception ex){
+					ex.printStackTrace();
 					throw new Exception("ERROR.-La fecha "+value+" no es una fecha valida.");
 				}
 			}
 			return value;
 		}else{
 			if (t1.equals("INT") && t2.equals("FLOAT")){
-				int val = Integer.parseInt(value);
+				int val = (int)Float.parseFloat(value);
 				return val+"";
 			}
 			if(t1.equals("FLOAT") && t2.equals("INT")){
-				float val = Float.parseFloat(value);
+				float val = Integer.parseInt(value);
 				return  val + "";
 			}
 			throw new Exception("ERROR.-El valor " + value + " no coincide con el tipo de la columna: " + column.get("name"));
@@ -2534,6 +2584,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	public String end(){
 		return ((System.nanoTime()-starttime)/1000000)+"ms";
 	}
+	
+	//Validar que exista el campo en la relacion
+	
+	
 }
 
 

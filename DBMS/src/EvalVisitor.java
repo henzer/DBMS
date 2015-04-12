@@ -41,7 +41,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private JSONObject currentDataFile=null;
 	private boolean isCheck=false;
 	private SimpleDateFormat formatoFecha;
-
+	private long starttime=0;
 	private boolean tableID=false;
 	public EvalVisitor(){
 		
@@ -422,6 +422,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		newTable.put("name", owner);
 		JSONArray columns =new JSONArray();
 		for(int i=0;i<ctx.tipo().size();i++){
+			//revision de columna repetida
+			for(int j=1;j<ctx.ID().size();j++){
+				if(j!=i+1){
+					if(ctx.ID(i+1).getText().equals(ctx.ID(j).getText())){
+						return new Tipo("error","Duplicate column "+ctx.ID(i+1));
+					}
+				}
+			}
 			Tipo current=  visit(ctx.tipo(i));
 			JSONObject newColumn = new JSONObject();
 			newColumn.put("name", ctx.ID(i+1).getText());
@@ -1138,6 +1146,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	//Metodos para el DML*******************************************************************
 	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) {
+		start();
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
 		memoria = new HashMap<String, JSONObject>();
 		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
 		int contador = 0;
@@ -1151,10 +1163,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
 		
-		return new Tipo("void", "Se ha insertado "+ contador+" registros con éxito.");
+		return new Tipo("void", "Succesfully inserted "+ contador+" entries in "+end());
 		
 	}
 	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) {
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
 		memoria = new HashMap<String, JSONObject>();
 		Tipo t=new Tipo("void");
 		for(DDLGrammarParser.UpdateContext update : ctx.update()){
@@ -1165,10 +1180,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		for(String key: memoria.keySet()){
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
-		
 		return t;
 	}
 	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) {
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
 		memoria = new HashMap<String, JSONObject>();
 		Tipo t=new Tipo("void");
 		for(DDLGrammarParser.DeleteContext delete : ctx.delete()){
@@ -1185,6 +1202,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { 
 		Tipo resultado=null;
+		if(currentDataBase==null){
+			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+		}
 		for(int i=0;i<ctx.select().size();i++){
 			resultado=visit(ctx.select(i));
 			if(resultado.isError()){
@@ -1292,9 +1312,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	
 	@Override public Tipo visitUpdate(@NotNull DDLGrammarParser.UpdateContext ctx) {
-		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
-		}
+		start();
 		//Se extrae el nombre de la tabla 
 		String tabla = ctx.ID(0).getText();
 		//Verfica que exista la tabla en la base de datos actual.
@@ -1410,13 +1428,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			
 		}
 		
-		return new Tipo("void", "Se han modificado " + contador + " con exito");
+		return new Tipo("void", "Modfied " + contador + " entries in "+end());
 		
 		
 	}
 	
 	@Override public Tipo visitDelete(@NotNull DDLGrammarParser.DeleteContext ctx) {
 		tableID=false;
+		start();
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
@@ -1501,12 +1520,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}*/
 		}
 		
-		return new Tipo("void", "Se han eliminado " + contador + " filas exitosamente.");
+		return new Tipo("void", "Deleted " + contador + " entries in "+end());
 		
 	}
 	
 	@Override public Tipo visitSelect(@NotNull DDLGrammarParser.SelectContext ctx) { 
 		tableID=true;
+		start();
 		//checkeo de from
 		Tipo t1 = visit(ctx.from());
 		if(t1.isError())return t1;
@@ -1584,7 +1604,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONObject resultados=new JSONObject();
 		resultados.put("headers", currentColumns.clone());
 		resultados.put("entries", entries);
-		Tipo returnValue=new Tipo("select");
+		Tipo returnValue=new Tipo("select","Fetched "+entries.size()+" in "+end());
 		returnValue.setRelacion(resultados);;
 		return returnValue;
 	
@@ -2507,7 +2527,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 		return result;
 	}
-	
+	//tomar el tiempo
+	public void start(){
+		starttime=System.nanoTime();
+	}
+	public String end(){
+		return ((System.nanoTime()-starttime)/1000000)+"ms";
+	}
 }
 
 

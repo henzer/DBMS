@@ -597,9 +597,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { 
-		System.out.println("hola");
 		Tipo res=visitChildren(ctx);
-		System.out.println(res);
 		return res; 
 	}
 	/**
@@ -1526,7 +1524,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(campos.isError()){
 			return campos;
 		}
-		
+		for(int i=0;i<campos.getResultado().size();i++){
+			System.out.println(campos.getResultado().get(i));
+		}
 		//checko de where
 		Tipo expression=null;
 		if(ctx.where()!=null){
@@ -1573,15 +1573,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 							else{
 								temp.add(resultado);
 							}
-							//filtrado eliminacion de columnas innecesarias
-							ArrayList<String> requested=campos.getResultado();
-							if(requested.size()!=0){
-								JSONObject nuevo=new JSONObject();
-								for(int z=0;z<requested.size();z++){
-									nuevo.put(requested.get(z), resultado.get(requested.get(z)));
-								}
-								resultado=nuevo;
-							}
 						}
 						
 					}
@@ -1595,7 +1586,22 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if(order.isError())return order;
 			entries.sort(new JSONComparator(criterios));
 		}
-		
+		//filtrado eliminacion de columnas innecesarias
+		ArrayList<String> requested=campos.getResultado();
+		if(requested.size()!=0){
+			for(int w=currentColumns.size()-1;w>=0;w--){
+				JSONObject current=(JSONObject)currentColumns.get(w);
+				boolean found=false;
+				for(int z=0;z<requested.size();z++){
+					if(requested.get(z).equals(current.get("name"))){
+						found=true;
+					}
+				}
+				if(!found){
+					currentColumns.remove(w);
+				}
+			}
+		}
 		JSONObject resultados=new JSONObject();
 		resultados.put("headers", currentColumns.clone());
 		resultados.put("entries", entries);
@@ -1606,42 +1612,48 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	@Override public Tipo visitPart_select(@NotNull DDLGrammarParser.Part_selectContext ctx) { 
 		if(ctx.getText().equals("*")){
-			return new Tipo("void");
+			return new Tipo("all",new ArrayList<String>());
 		}
 		else{
 			ArrayList<String> resultado=new ArrayList<String>();
-			for(int i=0;i<ctx.ID().size();i++){
-				String alias=ctx.ID(i).getText();
-				//revisar si existe el nombre explicito
-				for(int j=0;j<currentColumns.size();j++){
-					JSONObject current=(JSONObject)currentColumns.get(j);
-					String columnName=(String)current.get("name");
-					if(alias.equals(columnName)){
-						resultado.add(alias);
+			for(int i=0;i<ctx.children.size();i++){
+				String alias=ctx.children.get(i).getText();
+				if(!alias.equals(",")){
+					int count=0;
+					//revisar si existe el nombre explicito
+					for(int j=0;j<currentColumns.size();j++){
+						JSONObject current=(JSONObject)currentColumns.get(j);
+						String columnName=(String)current.get("name");
+						if(alias.equals(columnName)){
+							resultado.add(alias);
+							count++;
+							break;
+						}
+						
 					}
-					
-				}
-				//revisar que este contenido en id.id
-				int count=0;
-				String newName="";
-				for(int j=0;j<currentColumns.size();j++){
-					JSONObject current=(JSONObject)currentColumns.get(j);
-					String columnName=(String)current.get("name");
-					String checking=columnName.substring(columnName.indexOf(".")+1);
-					if(alias.equals(checking)){
-						newName=columnName;
-						count++;
+					//revisar que este contenido en id.id
+					String newName="";
+					if(count==0){
+						for(int j=0;j<currentColumns.size();j++){
+							JSONObject current=(JSONObject)currentColumns.get(j);
+							String columnName=(String)current.get("name");
+							String checking=columnName.substring(columnName.indexOf(".")+1);
+							if(alias.equals(checking)){
+								newName=columnName;
+								count++;
+							}
+							
+						}
+						if(count==0){
+							return new Tipo("error","Column "+ctx.ID()+" does not exist in relation");
+						}
+						else if(count==1){
+							resultado.add(newName);
+						}
+						else{
+							return new Tipo("error","Ambiguos reference for "+alias);
+						}
 					}
-					
-				}
-				if(count==0){
-					return new Tipo("error","Column "+ctx.ID()+" does not exist in relation");
-				}
-				else if(count==1){
-					resultado.add(newName);
-				}
-				else{
-					return new Tipo("error","Ambiguos reference for "+alias);
 				}
 			}
 			return new Tipo("void",resultado);
@@ -1677,12 +1689,11 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}				
 			}
 			if(!found){
-				Tipo res=new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
+				Tipo res=new Tipo("error","Table name does not exist "+ctx.ID(i).getText());
 				return res;
 			}
 		}
 		return new Tipo ("void",resultado);
-		
 	}
 	@Override public Tipo visitWhere(@NotNull DDLGrammarParser.WhereContext ctx) { return visitChildren(ctx);}
 	@Override public Tipo visitOrder_by(@NotNull DDLGrammarParser.Order_byContext ctx) {
@@ -2524,7 +2535,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
 					
 				}else{
-					//Validar check
+					JSONArray expression = (JSONArray) constr.get("check");
+					ArrayList<String> expr = new ArrayList<String>();
+					for(int k=0; k<expression.size(); k++){
+						expr.add(expression.get(k).toString());
+					}
+					if(!validar(expr, nueva, false)){
+						throw new Exception("ERROR.-Se esta violando la condicion de CHECK: " + constr.get("name"));
+					}
 				}
 			}
 		}

@@ -2449,44 +2449,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 	}
-	public boolean calcularWhere(ArrayList<String> input){
-		Stack<String> temp=new Stack<String>();
-		for(int i=0;i<input.size();i++){
-			String actual = input.get(i);
-			//revisar si es operador
-			//operador and
-			if(actual.equals("AND")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")&&var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
-			}
-			//operador or
-			else if(actual.equals("OR")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")||var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
-			}
-			else if(actual.equals("NOT")){
-				String var=temp.pop();
-				if(var.equals("true")){
-					temp.push("false");
-				}
-				else if(var.equals("false")){
-					temp.push("true");
-				}
-			}
-		}
-		return true;
-
-	}
-
 	
+
+	//Obtiene una relacion a partir del nombre enviado como parametro. Si esta en memoría solo la retorna y si no, la carga y luego la retorna.
 	public JSONObject getRelationFromMemory(String name){
 		JSONObject relacion;
 		if(memoria.containsKey(name)){
@@ -2498,6 +2463,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return relacion;
 	}
 	
+	//Metodo que intenta castear los tipos pasados como parametros, de no ser compatibles
 	public String castTypes(JSONObject column, Tipo literal, String value) throws Exception{
 		String t1 = column.get("type").toString();
 		String t2 = literal.getTipo();

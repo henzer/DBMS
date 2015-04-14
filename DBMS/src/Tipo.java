@@ -8,7 +8,6 @@ public class Tipo{
 	private JSONObject relacion;
 	private ArrayList<String> resultado=null;
 	
-	
 	public Tipo(String tipo) {
 		super();
 		this.tipo = tipo;

@@ -35,7 +35,7 @@ public class FileTreeModel extends DefaultTreeSelectionModel implements
 
         // Tell JTree how many children a node has
         public int getChildCount(Object parent) {
-                String[] children = ((FileNode) parent).list();
+                String[] children =crearLista(parent);
                 if (children == null)
                         return 0;
                 return children.length;
@@ -45,7 +45,7 @@ public class FileTreeModel extends DefaultTreeSelectionModel implements
         // Our model returns FileNode objects for all nodes in the tree. The
         // JTree displays these by calling the FileNode.toString() method.
         public Object getChild(Object parent, int index) {
-                String[] children = ((FileNode) parent).list();
+                String[] children = crearLista(parent);
                
                 if ((children == null) || (index >= children.length))
                         return null;
@@ -54,7 +54,7 @@ public class FileTreeModel extends DefaultTreeSelectionModel implements
 
         // Figure out a child's position in its parent node.
         public int getIndexOfChild(Object parent, Object child) {
-                String[] children = ((FileNode) parent).list();
+                String[] children = crearLista(parent);
                 if (children == null)
                         return -1;
                 String childname = ((FileNode) child).getName();
@@ -86,13 +86,13 @@ public class FileTreeModel extends DefaultTreeSelectionModel implements
         	
         	int contador = 0;
             for(String s: children){
-            	if(!s.endsWith(".json"))
+            	if(!s.equals("master.json") && !s.equals("databases.json"))
             		contador++;
             }
             String[] nueva = new String[contador];
             contador = 0;
             for(String s: children)
-            	if(!s.endsWith(".json"))
+            	if(!s.equals("master.json") && !s.equals("databases.json"))
             		nueva[contador++] = s;
             return nueva;
         }

@@ -3,12 +3,15 @@ grammar DDLGrammar;
 fragment LETTER: ( 'a'..'z' | 'A'..'Z') ;
 fragment DIGIT: '0'..'9' ;
 
+NULL: 'NULL';
+ASC: 'ASC';
+DESC: 'DESC';
 NUM: ('-')?  DIGIT(DIGIT)*;
 DATE: DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT;
 FLOAT:  NUM '.' (DIGIT)*;
 ID : LETTER (LETTER | DIGIT)* ;
 TABLEID : ID'.'ID;
-NULL: 'NULL';
+
 
 
 COMMENTS: '//' ~('\r' | '\n' )*  -> channel(HIDDEN);
@@ -210,7 +213,10 @@ where:
 	;
 	
 order_by:
-	(TABLEID|ID) ('ASC'|'DESC')(','(TABLEID|ID) ('ASC'|'DESC') )*
+	criterion (','criterion)*
 	;
 	
+criterion:
+	(TABLEID|ID) (ASC|DESC)
+	;
 

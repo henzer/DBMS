@@ -49,16 +49,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	public static JTextArea consola;
 	
 	
-	
 	public EvalVisitor(){
 		
 		File filep = new File(baseDir+databaseFileName);
-		 
+		
 		// if file doesnt exists, then create it
 		if (!filep.exists()) {
 			System.out.println("No Existe");
 			JSONObject registro= new JSONObject();
 			registro.put("databases", new JSONArray());
+			createDirectory("databases");
 			createFile(baseDir+databaseFileName,registro+"");
 		}
 		tablaTipos = new TablaTipos();
@@ -1296,14 +1296,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
 		tableID=false;
-		if(verbose)print("Comprobando que se haya elegido una BD");
+		print("Comprobando que se haya elegido una BD");
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
 
 		String tabla = ctx.ID(0).getText();
 		
-		if(verbose)print("Comprobando que exista la tabla");
+		print("Comprobando que exista la tabla");
 		//Verfica que exista la tabla en la base de datos actual.
 		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
@@ -1327,7 +1327,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas de la tabla " + tabla);
 			}
 			int limite = ctx.literal().size();
-			if(verbose)print("Comprobando tipos.");
+			print("Comprobando tipos.");
 			for(int i=0; i<limite; i++){
 				//Se obtiene el valor a insertar
 				String value = ctx.literal(i).getText();
@@ -1354,7 +1354,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			for(int i=0; i<lim1; i++){
 				nueva.put(((JSONObject)columns.get(i)).get("name"), null);
 			}
-			if(verbose)print("Comprobando tipos.");
+			print("Comprobando tipos.");
 			for(int i=0; i<idSize; i++){
 				String idCol = ctx.ID(i+1).getText();
 				String value = ctx.literal(i).getText();
@@ -2638,13 +2638,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			JSONObject constr = (JSONObject) restricciones.get(i);
 			if(constr.get("owner").toString().equals(tabla)){
 				if(constr.containsKey("primaryKey")){
-					if(verbose)print("Validando PRIMARY KEYS.");
+					print("Validando PRIMARY KEYS.");
 				
 					JSONArray pk = (JSONArray) constr.get("primaryKey");
 					if(!checkPrimaryKey(pk, nueva, relacion))
 						throw new Exception("ERROR.-Se esta violando la llave primaria: " + constr.get("name"));
 				}else if(constr.containsKey("foreignKey")){
-					if(verbose)print("Validando FOREIGN KEYS.");
+					print("Validando FOREIGN KEYS.");
 					
 					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
 					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
@@ -2662,7 +2662,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
 					
 				}else{
-					if(verbose)print("Validando CHECK");
+					print("Validando CHECK");
 					JSONArray expression = (JSONArray) constr.get("check");
 					ArrayList<String> expr = new ArrayList<String>();
 					for(int k=0; k<expression.size(); k++){
@@ -2674,7 +2674,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}
 		}
-		if(verbose)print("Insertando...");
+		print("Insertando...");
 		((JSONArray)relacion.get("entries")).add(nueva);
 	}
 	//table1 contiene todas las entradas
@@ -2700,7 +2700,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	//Imprimir en consola
 	public void print(String message){
-		consola.setText(consola.getText() + message+ "\n");
+		if(verbose){
+			consola.setText(consola.getText() + message+ "\n");
+		}
 	}
 }
 

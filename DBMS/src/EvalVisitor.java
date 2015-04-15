@@ -2673,6 +2673,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					JSONArray fkRef = (JSONArray)fkObj.get("references");
 					String tableRef = fkObj.get("table").toString();
 					
+					
 					JSONObject relacionRef;
 					if(memoria.containsKey(tableRef)){
 						relacionRef = memoria.get(tableRef);

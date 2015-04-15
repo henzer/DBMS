@@ -1228,7 +1228,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitDmlInsert(@NotNull DDLGrammarParser.DmlInsertContext ctx) {
 		start();
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
 		memoria = new HashMap<String, JSONObject>();
 		currentDataBase = readJSON(baseDir+databaseName+"/master.json");
@@ -1238,7 +1238,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			if (t.isError()) return t;
 			contador++;
 		}
-		
+		print("Inserting...");
 		for(String key: memoria.keySet()){
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
@@ -1248,7 +1248,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	@Override public Tipo visitDmlUpdate(@NotNull DDLGrammarParser.DmlUpdateContext ctx) {
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
 		memoria = new HashMap<String, JSONObject>();
 		Tipo t=new Tipo("void");
@@ -1256,7 +1256,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			t = visit(update);
 			if (t.isError()) return t;
 		}
-		
+		print("Updatting...");
 		for(String key: memoria.keySet()){
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
@@ -1264,7 +1264,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	}
 	@Override public Tipo visitDmlDelete(@NotNull DDLGrammarParser.DmlDeleteContext ctx) {
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
 		memoria = new HashMap<String, JSONObject>();
 		Tipo t=new Tipo("void");
@@ -1272,7 +1272,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			t = visit(delete);
 			if (t.isError()) return t;
 		}
-		
+		print("Deleting...");
 		for(String key: memoria.keySet()){
 			createFile(baseDir+databaseName+"/"+key+".json",memoria.get(key).toJSONString());
 		}
@@ -1283,7 +1283,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitDmlSelect(@NotNull DDLGrammarParser.DmlSelectContext ctx) { 
 		Tipo resultado=null;
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
 		for(int i=0;i<ctx.select().size();i++){
 			resultado=visit(ctx.select(i));
@@ -1296,14 +1296,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
 		tableID=false;
-		print("Comprobando que se haya elegido una BD");
+		print("Checking that a database was selected");
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
 
 		String tabla = ctx.ID(0).getText();
 		
-		print("Comprobando que exista la tabla");
+		print("Checking that table exists");
 		//Verfica que exista la tabla en la base de datos actual.
 		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
@@ -1321,13 +1321,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 		int idSize = ctx.ID().size()-1;
 
-		
+		print("Checking that number of values match with number of columns");
 		if(idSize==0){
 			if(columns.size()!=ctx.literal().size()){
-				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas de la tabla " + tabla);
+				return new Tipo("error", "ERROR.-Does not match the number of parameter with columns in table:  " + tabla + "\nDetail: Error found in: " + ctx.getText());
 			}
 			int limite = ctx.literal().size();
-			print("Comprobando tipos.");
+			print("Checking types.");
 			for(int i=0; i<limite; i++){
 				//Se obtiene el valor a insertar
 				String value = ctx.literal(i).getText();
@@ -1348,20 +1348,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			
 		}else{
 			if(idSize!=ctx.literal().size()){
-				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas especificadas en la tabla " + tabla);
+				return new Tipo("error", "ERROR.-Does not match the number of columns with values inserted in table: " + tabla + "\nDetail: Error Found in: " + ctx.getText());
 			}
 			int lim1 = columns.size();
 			for(int i=0; i<lim1; i++){
 				nueva.put(((JSONObject)columns.get(i)).get("name"), null);
 			}
-			print("Comprobando tipos.");
+			print("Checking types.");
 			for(int i=0; i<idSize; i++){
 				String idCol = ctx.ID(i+1).getText();
 				String value = ctx.literal(i).getText();
 				JSONObject column = getColumn(columns, idCol);
 				
 				if(column==null){
-					return new Tipo("error", "ERROR.-No existe la columna " + idCol + " en la tabla " + tabla);
+					return new Tipo("error", "ERROR.-Not exists " + idCol+ " in table: " + tabla);
 				}
 				
 				Tipo t1 = visit(ctx.literal(i));
@@ -1370,12 +1370,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				try {
 					//Se intenta castear ambos valores.
 					value = castTypes(t2, t1, value);
-					nueva.put(((JSONObject)columns.get(i)).get("name"), value);
+					nueva.put(idCol, value);
 				} catch (Exception e) {
 					e.printStackTrace();
 					return new Tipo("error", e.getMessage());
 				}
-				nueva.put(idCol, value);
+				
 			}
 
 		}
@@ -1383,12 +1383,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 		//Intenta insertar. Se verifican las restricciones.
 		try {
-			insert(nueva, relacion, tabla);
+			insert(nueva, relacion, tabla, "insert");
 		} catch (Exception e) {
 			return new Tipo("error", e.getMessage());
 		}
 		
-		return new Tipo("void", "Se ha insertado con éxito.");
+		return new Tipo("void", "Succesfully inserted.");
 		
 	}
 	
@@ -1397,6 +1397,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		//Se extrae el nombre de la tabla 
 		String tabla = ctx.ID(0).getText();
 		//Verfica que exista la tabla en la base de datos actual.
+		print("Checking exists in database");
 		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
 			return new Tipo("error", "ERROR.-Table name "+tabla+" not available in database " + databaseName);
@@ -1407,6 +1408,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		boolean sinWhere = false;
 		ArrayList<String> expr = null;
 		if(ctx.expression()!=null){
+			print("Validating expression.");
 			Tipo t = visit(ctx.expression());
 			if(t.isError())return t;
 			expr = t.getResultado();
@@ -1428,6 +1430,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONObject PK = null;
 		HashMap<String, JSONObject> misRelaciones = new HashMap();	
 		
+		print("Finding constraints");
 		for(int j=0; j<sizeRestrict; j++){
 			JSONObject constr = (JSONObject) restricciones.get(j);
 			if(constr.get("owner").equals(tabla) && constr.get("primaryKey")!=null){
@@ -1448,6 +1451,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		
+		print("Checking types");
 		//Se realiza la comparacion de tipos
 		LinkedHashMap<String, String> values = new LinkedHashMap<String, String>();
 		int i = 1;
@@ -1486,10 +1490,13 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					if(bandera)continue;
 					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)listFKRef.get(l)).get("foreignKey")).get("columns");
 					String tablaRef = ((JSONObject)listFKRef.get(l)).get("owner").toString();
+					
+					print("Checking FOREING KEY: " + ((JSONObject)listFKRef.get(j)).get("name"));
 					if(checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef)))
-						return new Tipo("error", "ERROR.-No puede modificarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)listFKRef.get(j)).get("name"));
+						return new Tipo("error", "ERROR.-Can't modify tuple: " + tupla + ".\nDETAIL: Because foreign key was violated: " + ((JSONObject)listFKRef.get(j)).get("name"));
 				}
 				
+				print("Remmoving tuple");
 				entries.remove(tupla);
 				for(String key: values.keySet()){
 					tupla.put(key, values.get(key));
@@ -1497,7 +1504,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				
 				//Restricciones Insert
 				try {
-					insert(tupla, relacion, tabla);
+					insert(tupla, relacion, tabla, "update");
 					i--;
 					size--;
 					contador++;
@@ -1509,7 +1516,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			
 		}
 		
-		return new Tipo("void", "Modfied " + contador + " entries in "+end());
+		return new Tipo("void", "Modified " + contador + " entries in "+end());
 		
 		
 	}
@@ -1518,11 +1525,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tableID=false;
 		start();
 		if(currentDataBase==null){
-			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
+			return new Tipo("error", "ERROR.-No database Selected");	
 		}
-		//Se extrae el nombre de la tabla 
+		//Se extrae el nombre de la tabla
 		String tabla = ctx.ID().getText();
 		//Verfica que exista la tabla en la base de datos actual.
+		print("Checking exists in database");
 		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
 			return new Tipo("error", "ERROR.-Table name "+tabla+" not available in database " + databaseName);
@@ -1532,6 +1540,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		boolean sinWhere = false;
 		ArrayList<String> expr = null;
 		if(ctx.expression()!=null){
+			print("Validating expression");
 			Tipo t = visit(ctx.expression());
 			if(t.isError())return t;
 			expr = t.getResultado();
@@ -1544,15 +1553,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		
 		JSONArray entries = (JSONArray)relacion.get("entries");
 		int size = entries.size();
-		
-		//ScriptEngineManager manager = new ScriptEngineManager();
-	    //ScriptEngine engine = manager.getEngineByName("js"); 
+
 		//Se busca las restricciones
 		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		int sizeRestrict = restricciones.size();
 		JSONArray misRestricciones = new JSONArray();
 		HashMap<String, JSONObject> misRelaciones = new HashMap();	
 		
+		print("Finding constraints");
 		for(int j=0; j<sizeRestrict; j++){
 			JSONObject constr = (JSONObject) restricciones.get(j);
 			JSONObject foreignKey = (JSONObject)constr.get("foreignKey");
@@ -1568,24 +1576,25 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		for(int i = 0; i<size; i++){
 			JSONObject tupla = (JSONObject)entries.get(i);
 			if (sinWhere || validar(expr, tupla, false)){
-				System.out.println("Se eliminará: " + tupla);
 				if(limRes==0){
 					entries.remove(i);
 					size--;
 					i--;
 					contador++;
 				}
+				
 				for(int j= 0; j<misRestricciones.size(); j++){
 					JSONArray fkLocal = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("references");
 					JSONArray fkRef = (JSONArray)((JSONObject)((JSONObject)misRestricciones.get(j)).get("foreignKey")).get("columns");
 					String tablaRef = ((JSONObject)misRestricciones.get(j)).get("owner").toString();
+					print("Checking FOREIGN KEY: " + ((JSONObject)misRestricciones.get(j)).get("name"));
 					if(!checkForeignKey(fkLocal, fkRef, tupla, misRelaciones.get(tablaRef))){
 						entries.remove(i);
 						size--;
 						i--;
 						contador++;
 					}else{
-						return new Tipo("error", "ERROR.-No puede eliminarse la tupla " + tupla + ".\nDETAIL: Porque viola la LLAVE FORANEA: " + ((JSONObject)misRestricciones.get(j)).get("name"));
+						return new Tipo("error", "ERROR.-Can't remove tuple: " + tupla + ".\nDETAIL: Because FOREIGN KEY was violated: " + ((JSONObject)misRestricciones.get(j)).get("name"));
 					}
 				}
 			}
@@ -1599,19 +1608,22 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tableID=true;
 		start();
 		//checkeo de from
+		print("Checking tables from FROM");
 		Tipo t1 = visit(ctx.from());
 		if(t1.isError())return t1;
 		//checko de part_select
+		print("Checking columns from SELECT");
 		Tipo campos=visit(ctx.part_select());
 		if(campos.isError()){
 			return campos;
 		}
-		for(int i=0;i<campos.getResultado().size();i++){
-			System.out.println(campos.getResultado().get(i));
-		}
+		//for(int i=0;i<campos.getResultado().size();i++){
+		//	System.out.println(campos.getResultado().get(i));
+		//}
 		//checko de where
 		Tipo expression=null;
 		if(ctx.where()!=null){
+			print("Validating expression from WHERE");
 			expression =visit(ctx.where());
 			if(expression.isError()){
 				return expression;
@@ -1620,6 +1632,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		ArrayList<String> tablas =t1.getResultado();
 		//creacion de tuplas y chequeo de tuplas
 		JSONArray entries = new JSONArray();
+		print("Generating cartesian product");
 		for(int i=0;i<tablas.size();i++){
 			String cName=tablas.get(i);
 			if(i==0){
@@ -1663,12 +1676,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		//preparandose para el retorno
+		print("Sorting result");
 		if(ctx.order_by()!=null){
 			Tipo order=visit(ctx.order_by());
 			if(order.isError())return order;
 			entries.sort(new JSONComparator(criterios));
 		}
 		//filtrado eliminacion de columnas innecesarias
+		print ("Deleting innecesary columns");
 		ArrayList<String> requested=campos.getResultado();
 		if(requested.size()!=0){
 			for(int w=currentColumns.size()-1;w>=0;w--){
@@ -1684,6 +1699,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}
 		}
+		print("Formatting result");
 		JSONObject resultados=new JSONObject();
 		resultados.put("headers", currentColumns.clone());
 		resultados.put("entries", entries);
@@ -1697,6 +1713,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return new Tipo("all",new ArrayList<String>());
 		}
 		else{
+			print("Checking exists columns in FROM");
 			ArrayList<String> resultado=new ArrayList<String>();
 			for(int i=0;i<ctx.children.size();i++){
 				String alias=ctx.children.get(i).getText();
@@ -1748,6 +1765,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		ArrayList<String> resultado=new ArrayList<String>();
 		
 		//revisar la existencia de las tablas
+		print("Checking exists tables from FROM");
 		for(int i=0;i<ctx.ID().size();i++){
 			String actual=ctx.ID(i).getText();
 			resultado.add(actual);
@@ -2378,15 +2396,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		int lim2 = pk.size();
 
 		for(int i=0; i<lim1; i++){
-			boolean encontrado = true;
 			for(int j=0; j<lim2; j++){
 				String key = pk.get(j).toString();
-				if(!((JSONObject)entries.get(i)).get(key).equals(values.get(key))){
-					encontrado = false;
-					break;
+				if(((JSONObject)entries.get(i)).get(key)==null || ((JSONObject)entries.get(i)).get(key).equals(values.get(key))){
+					return false;
 				}
 			}
-			if(encontrado)return false;
 		}
 		return true;
 		
@@ -2608,14 +2623,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				if(l1>=l2){
 					return value;
 				}else{
-					throw new Exception("ERROR.-El CHAR "+value+"tiene un tamaño muy grande.");
+					throw new Exception("ERROR.-CHAR "+value+" too long.");
 				}
 			}else if(t1.equals("DATE")){
 				try{
 					formatoFecha.parse(value);
 				}catch(Exception ex){
 					ex.printStackTrace();
-					throw new Exception("ERROR.-La fecha "+value+" no es una fecha valida.");
+					throw new Exception("ERROR.-Date "+value+" not valid.");
 				}
 			}
 			return value;
@@ -2628,23 +2643,30 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				float val = Integer.parseInt(value);
 				return  val + "";
 			}
-			throw new Exception("ERROR.-El valor " + value + " no coincide con el tipo de la columna: " + column.get("name"));
+			throw new Exception("ERROR.-The type of:" + value + " is different to type column: " + column.get("name"));
 		}
 	}
 	
-	public void insert(JSONObject nueva, JSONObject relacion, String tabla) throws Exception{
+	public void insert(JSONObject nueva, JSONObject relacion, String tabla, String message) throws Exception{
 		JSONArray restricciones = (JSONArray)currentDataBase.get("constraints");
 		for(int i=0; i<restricciones.size(); i++){
 			JSONObject constr = (JSONObject) restricciones.get(i);
 			if(constr.get("owner").toString().equals(tabla)){
 				if(constr.containsKey("primaryKey")){
-					print("Validando PRIMARY KEYS.");
+					print("Checking PRIMARY KEY: " + constr.get("name"));
 				
 					JSONArray pk = (JSONArray) constr.get("primaryKey");
+					int l1 = pk.size();
+					for(int j=0; j<l1; j++){
+						if(nueva.get(pk.get(j))==null){
+							throw new Exception("ERROR.-Column " + pk.get(j) + " can't be NULL, because it is a PRIMARY KEY");
+						}
+					}
+					
 					if(!checkPrimaryKey(pk, nueva, relacion))
-						throw new Exception("ERROR.-Se esta violando la llave primaria: " + constr.get("name"));
+						throw new Exception("ERROR.-Can't "+message+" tuple: " +nueva + ".\nDetail: Because PRIMARY KEY was violated: "  + constr.get("name"));
 				}else if(constr.containsKey("foreignKey")){
-					print("Validando FOREIGN KEYS.");
+					print("Checking FOREIGN KEY: " + constr.get("name"));
 					
 					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
 					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
@@ -2659,22 +2681,21 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						memoriaRef.put(tableRef, relacionRef);
 					}
 					if(!checkForeignKey(fkLocal, fkRef, nueva, relacionRef))
-						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
+						throw new Exception("ERROR.-Can't "+message+" tuple: " +nueva+ "\nDetail: Because FOREIGN KEY was violated" + constr.get("name"));
 					
 				}else{
-					print("Validando CHECK");
+					print("Checking CHECK: " +  constr.get("name"));
 					JSONArray expression = (JSONArray) constr.get("check");
 					ArrayList<String> expr = new ArrayList<String>();
 					for(int k=0; k<expression.size(); k++){
 						expr.add(expression.get(k).toString());
 					}
 					if(!validar(expr, nueva, false)){
-						throw new Exception("ERROR.-Se esta violando la condicion de CHECK: " + constr.get("name"));
+						throw new Exception("ERROR.-Can't "+message+" tulpe: " + nueva+"\nDetail: Because CHECK failed: " + constr.get("name"));
 					}
 				}
 			}
 		}
-		print("Insertando...");
 		((JSONArray)relacion.get("entries")).add(nueva);
 	}
 	//table1 contiene todas las entradas

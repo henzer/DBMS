@@ -94,12 +94,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		//verificar la existencia de la tabla
 		JSONArray tables=(JSONArray)currentDataBase.get("tables");
 		int index=-1;
-		int length=-1;
 		for(int i=0;i<tables.size();i++){
 			JSONObject current=(JSONObject)tables.get(i);
 			if(ctx.ID(0).getText().equals((String)current.get("name"))){
 				index=i;
-				length=(int)(long)current.get("length");
 				break;
 			}
 		}
@@ -163,6 +161,12 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return res;
 		}
 		try {
+			JSONArray entries=(JSONArray)currentDataFile.get("entries");
+			for(int i=0;i<entries.size();i++){
+				if(!validar(res.getResultado(), (JSONObject) entries.get(i), true)){
+					return new Tipo("error","Tuple "+entries.get(i)+" does not pass constraint");
+				}
+			}
 			addCheck(currentConstraints, owner, ctx.ID().getText(), res.getResultado());
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -260,6 +264,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) {
 		try {
 			alterDatabase(ctx.ID(0).getText(), ctx.ID(1).getText());
+			databaseName=ctx.ID(0).getText();
 			return new Tipo("void", "Database name changed succesfully.");
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -805,7 +810,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public Tipo visitConstraintDecl2(@NotNull DDLGrammarParser.ConstraintDecl2Context ctx) { 
+	@Override public Tipo visitConstraintDecl2(@NotNull DDLGrammarParser.ConstraintDecl2Context ctx) {
 		ArrayList<String> to = new ArrayList<String>();
 		ArrayList<String> from=new ArrayList<String>();
 		boolean references=false;
@@ -827,7 +832,20 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 		try {
+			JSONArray fkLocal=new JSONArray();
+			fkLocal.addAll(from);
+			JSONArray fkRef=new JSONArray();
+			fkRef.addAll(to);
+			JSONObject relacionRef=readJSON(baseDir+databaseName+"/"+referenced+".json");
+			JSONArray entries=(JSONArray)currentDataFile.get("entries");
 			addForeignKey(currentConstraints, currentColumns, owner, ctx.ID(0).getText(), from, referenced, to);
+			for(int i=0;i<entries.size();i++){
+				if(!this.checkForeignKey(fkLocal, fkRef, (JSONObject) entries.get(i), relacionRef)){
+					currentConstraints.remove(currentConstraints.size()-1);
+					return new Tipo("error","Tuple "+entries.get(i)+" does not pass constraint");
+				}
+				
+			}
 			return new Tipo("void");
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -2048,6 +2066,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		if(fromC.size()!=toC.size()){
 			throw new Exception("Size of fields do not match ");
 		}
+		boolean foundPK=false;
 		for(int i=0;i<constraints.size();i++){
 			JSONObject currentC=(JSONObject)constraints.get(i);
 			if(nombreC.equals((String)currentC.get("name"))){
@@ -2077,6 +2096,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					for(int x=0;x<keys.size();x++){
 						if(toC.get(k).equals((String)keys.get(x))){
 							foundC=true;
+							break;
 						}
 					}
 					if(!foundC){
@@ -2087,7 +2107,15 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						throw new Exception("Table "+references+" has no primary key "+combination);
 					}
 				}
+				foundPK=true;
 			}
+		}
+		if(!foundPK){
+			String combination=toC.get(0);
+			for(int y=1;y<toC.size();y++){
+				combination+=","+toC.get(y);
+			}
+			throw new Exception("Table "+references+" has no primary key "+combination);
 		}
 		//revisar que sean del mismo tipo las columnas
 		for(int i=0;i<fromC.size();i++){
@@ -2236,8 +2264,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONObject result=null;
 		JSONParser parser = new JSONParser();
 		Object obj;
+		FileReader archivo=null;
 		try {
-			obj = parser.parse(new FileReader(dir));
+			archivo=new FileReader(dir);
+			obj = parser.parse(archivo);
 			result = (JSONObject) obj;
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -2245,6 +2275,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			e.printStackTrace();
 		} catch (ParseException e) {
 			e.printStackTrace();
+		}
+		finally{
+			if(archivo!=null){
+				try {
+					archivo.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
 		return result;
 	}
@@ -2608,7 +2648,6 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	public void print(String message){
 		consola.setText(consola.getText() + message+ "\n");
 	}
-	
 }
 
 

@@ -42,7 +42,7 @@ createDatabase
 	;
 
 alterDatabase
-	: 'ALTER' 'DATABASE' ID 'TO' ID
+	: 'ALTER' 'DATABASE' ID 'RENAME' 'TO' ID
 	;
 
 dropDatabase
@@ -71,7 +71,7 @@ dropTable
 	;
 	
 showTables
-	: 'SHOW' 'TABLES' ID
+	: 'SHOW' 'TABLES'
 	;
 	
 showColumnsFrom

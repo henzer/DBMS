@@ -602,6 +602,18 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public Tipo visitRoot(@NotNull DDLGrammarParser.RootContext ctx) { 
+		String mensaje = "";
+		Tipo t=new Tipo("void");
+		for(DDLGrammarParser.StatementContext statement: ctx.statement()){
+			t = visit(statement);
+			if(t.isError())return t;
+			mensaje+= t.getMensaje() + "\n";
+		}
+		t.setMensaje(mensaje);
+		return t;
+	}
+	
 	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { 
 		Tipo res=visitChildren(ctx);
 		return res; 
@@ -1708,7 +1720,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}				
 			}
 			if(!found){
-				Tipo res=new Tipo("error","Database name does not exist "+ctx.ID(i).getText());
+				Tipo res=new Tipo("error","Table name does not exist "+ctx.ID(i).getText());
 				return res;
 			}
 		}
@@ -2489,44 +2501,9 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			}
 		}
 	}
-	public boolean calcularWhere(ArrayList<String> input){
-		Stack<String> temp=new Stack<String>();
-		for(int i=0;i<input.size();i++){
-			String actual = input.get(i);
-			//revisar si es operador
-			//operador and
-			if(actual.equals("AND")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")&&var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
-			}
-			//operador or
-			else if(actual.equals("OR")){
-				String var1=temp.pop();
-				String var2=temp.pop();
-				if(var1.equals("true")||var2.equals("true")){
-					temp.push("true");
-				}
-				temp.push("false");
-			}
-			else if(actual.equals("NOT")){
-				String var=temp.pop();
-				if(var.equals("true")){
-					temp.push("false");
-				}
-				else if(var.equals("false")){
-					temp.push("true");
-				}
-			}
-		}
-		return true;
-
-	}
-
 	
+
+	//Obtiene una relacion a partir del nombre enviado como parametro. Si esta en memoría solo la retorna y si no, la carga y luego la retorna.
 	public JSONObject getRelationFromMemory(String name){
 		JSONObject relacion;
 		if(memoria.containsKey(name)){
@@ -2538,6 +2515,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return relacion;
 	}
 	
+	//Metodo que intenta castear los tipos pasados como parametros, de no ser compatibles
 	public String castTypes(JSONObject column, Tipo literal, String value) throws Exception{
 		String t1 = column.get("type").toString();
 		String t2 = literal.getTipo();
@@ -2598,7 +2576,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
 					
 				}else{
-					//Validar check
+					JSONArray expression = (JSONArray) constr.get("check");
+					ArrayList<String> expr = new ArrayList<String>();
+					for(int k=0; k<expression.size(); k++){
+						expr.add(expression.get(k).toString());
+					}
+					if(!validar(expr, nueva, false)){
+						throw new Exception("ERROR.-Se esta violando la condicion de CHECK: " + constr.get("name"));
+					}
 				}
 			}
 		}

@@ -81,12 +81,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		//verificar la existencia de la tabla
 		JSONArray tables=(JSONArray)currentDataBase.get("tables");
 		int index=-1;
-		int length=-1;
 		for(int i=0;i<tables.size();i++){
 			JSONObject current=(JSONObject)tables.get(i);
 			if(ctx.ID(0).getText().equals((String)current.get("name"))){
 				index=i;
-				length=(int)(long)current.get("length");
 				break;
 			}
 		}
@@ -253,6 +251,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	@Override public Tipo visitAlterDatabase(@NotNull DDLGrammarParser.AlterDatabaseContext ctx) {
 		try {
 			alterDatabase(ctx.ID(0).getText(), ctx.ID(1).getText());
+			databaseName=ctx.ID(0).getText();
 			return new Tipo("void", "Database name changed succesfully.");
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -2248,8 +2247,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		JSONObject result=null;
 		JSONParser parser = new JSONParser();
 		Object obj;
+		FileReader archivo=null;
 		try {
-			obj = parser.parse(new FileReader(dir));
+			archivo=new FileReader(dir);
+			obj = parser.parse(archivo);
 			result = (JSONObject) obj;
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -2257,6 +2258,16 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			e.printStackTrace();
 		} catch (ParseException e) {
 			e.printStackTrace();
+		}
+		finally{
+			if(archivo!=null){
+				try {
+					archivo.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
 		return result;
 	}

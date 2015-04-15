@@ -46,13 +46,15 @@ public class ControladorDDL {
 		
 		
 		//Revision Lexica y Sintactica
-		parser.statement();
+		parser.root();
+		//parser.root().inspect(parser);
+		
 		if(!e.isError()){
 			data = false;
 			parser.reset();
 			//Revision Semantica
 			EvalVisitor visitador = new EvalVisitor();
-			Tipo t = (Tipo) visitador.visit(parser.statement());
+			Tipo t = (Tipo) visitador.visit(parser.root());
 			
 			JSONObject resultado = t.getRelacion();
 			if(resultado!=null){

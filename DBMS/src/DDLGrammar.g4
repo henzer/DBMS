@@ -19,9 +19,9 @@ WS: [ \t\r\n\f]+  -> channel(HIDDEN);
 
 CHAR: '\''~('\r'|'\n'|'\'')* '\'';
 
-//root:
-//	(statement)*
-//	;
+root:
+	(statement) (';' statement)* ';'
+	;
 
 statement
 	: createDatabase 
@@ -59,7 +59,6 @@ useDatabase
 
 createTable
 	: 'CREATE' 'TABLE' ID '(' (ID tipo (',' ID tipo)*)? (','constraintDecl)* ')'
-	|
 	;
 
 alterTable
@@ -179,7 +178,7 @@ factor
 	
 
 dmlstatement
-	:	(insert)*				#dmlInsert
+	:	insert (';' insert)*				#dmlInsert
 	|	(update)*				#dmlUpdate
 	|	(delete)*				#dmlDelete
 	|	(select)*				#dmlSelect

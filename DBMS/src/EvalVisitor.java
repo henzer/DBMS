@@ -596,6 +596,18 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public Tipo visitRoot(@NotNull DDLGrammarParser.RootContext ctx) { 
+		String mensaje = "";
+		Tipo t=new Tipo("void");
+		for(DDLGrammarParser.StatementContext statement: ctx.statement()){
+			t = visit(statement);
+			if(t.isError())return t;
+			mensaje+= t.getMensaje() + "\n";
+		}
+		t.setMensaje(mensaje);
+		return t;
+	}
+	
 	@Override public Tipo visitStatement(@NotNull DDLGrammarParser.StatementContext ctx) { 
 		Tipo res=visitChildren(ctx);
 		return res; 

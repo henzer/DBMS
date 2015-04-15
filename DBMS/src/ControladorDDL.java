@@ -23,14 +23,16 @@ public class ControladorDDL {
 	private TreeViewer vista;
 	private boolean data;
 	private static DefaultTableModel modelo;
-	
+	private EvalVisitor visitador;
 	
 	public ControladorDDL(){
 		data = false;
 		modelo = new DefaultTableModel();
+		visitador = new EvalVisitor();
 	}
 	
 	public String compilar(String texto){
+		data = false;
 		input = new ANTLRInputStream(texto);
 		lexer = new DDLGrammarLexer(input);
 		tokens = new CommonTokenStream(lexer);
@@ -50,10 +52,8 @@ public class ControladorDDL {
 		//parser.root().inspect(parser);
 		
 		if(!e.isError()){
-			data = false;
 			parser.reset();
 			//Revision Semantica
-			EvalVisitor visitador = new EvalVisitor();
 			Tipo t = (Tipo) visitador.visit(parser.root());
 			
 			JSONObject resultado = t.getRelacion();
@@ -110,6 +110,13 @@ public class ControladorDDL {
 		ControladorDDL.modelo = modelo;
 	}
 	
+	public void setVerbose(boolean verbose){
+		visitador.setVerbose(verbose);
+	}
+	
+	public boolean getVerbose(){
+		return visitador.isVerbose();
+	}
 	
 
 }

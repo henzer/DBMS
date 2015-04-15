@@ -49,17 +49,17 @@ public class IDE extends JFrame {
 	private JTree treeBD;
 	private ControladorDDL controlDDL;
 	private JTable table;
+	private JCheckBox chkVerbose;
 	
 	public IDE() {
-		controlDDL = new ControladorDDL();
-		
+
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 716, 439);
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		setContentPane(contentPane);
 		contentPane.setLayout(new BorderLayout(0, 0));
-		
+		chkVerbose = new JCheckBox("Verbose");
 		JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
 		contentPane.add(tabbedPane, BorderLayout.CENTER);
 		
@@ -87,6 +87,9 @@ public class IDE extends JFrame {
 		JTextArea txtConsola = new JTextArea();
 		scrollPane_2.setViewportView(txtConsola);
 
+		//Se coloca una referencia de la consola en la clase EvalVisitor, para que pueda escribir en consola.
+		EvalVisitor.consola = txtConsola;
+
 		JMenuBar menuBar = new JMenuBar();
 		scrollPane_2.setColumnHeaderView(menuBar);
 		
@@ -94,9 +97,12 @@ public class IDE extends JFrame {
 		btnEjecutar.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
 				if(tabbedPane.getSelectedIndex()==0){
-					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
-					txtConsola.setText(mensaje);
+					txtConsola.setText("");
+					controlDDL.setVerbose(chkVerbose.isSelected());
 					
+					String mensaje = controlDDL.compilar(toUpperCase(txtDDL.getText()));
+					txtConsola.setText(txtConsola.getText() + mensaje);
+	
 					if(controlDDL.isData()){
 						table.setModel(controlDDL.getModelo());
 						tabbedPane.setSelectedIndex(1);
@@ -129,7 +135,6 @@ public class IDE extends JFrame {
 		btnAbrir.setIcon(new ImageIcon(IDE.class.getResource("/com/sun/java/swing/plaf/windows/icons/NewFolder.gif")));
 		menuBar.add(btnAbrir);
 		
-		JCheckBox chkVerbose = new JCheckBox("Verbose");
 		menuBar.add(chkVerbose);
 		
 		JPanel panel = new JPanel();
@@ -153,6 +158,9 @@ public class IDE extends JFrame {
 		treeBD.setModel(model);
 		
 		scrollPane_3.setViewportView(treeBD);
+		
+		//Se crea la clase que maneja toda la lógica.
+		controlDDL = new ControladorDDL();
 	}
 	
 	public String abrirArchivo() {

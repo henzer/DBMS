@@ -18,6 +18,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.swing.JOptionPane;
+import javax.swing.JTextArea;
 
 import org.antlr.v4.runtime.misc.NotNull;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -44,6 +45,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	private long starttime=0;
 	private boolean tableID=false;
 	private ArrayList<Criterion> criterios;
+	private boolean verbose;
+	public static JTextArea consola;
+	
+	
 	
 	public EvalVisitor(){
 		
@@ -71,7 +76,15 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		tablaTipos.agregar("CHAR", 0);
 		tablaTipos.agregar("BOOLEAN", 1);
 	}
-	
+
+	public boolean isVerbose() {
+		return verbose;
+		
+	}
+	public void setVerbose(boolean verbose) {
+		this.verbose = verbose;
+	}
+
 	@Override public Tipo visitAlterTableRename(@NotNull DDLGrammarParser.AlterTableRenameContext ctx) { 
 		//verificar la base de datos actual
 		if(currentDataBase==null){
@@ -283,6 +296,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			return new Tipo("void", "Using database "+ctx.ID().getText());
 		} catch (Exception e) {
 			e.printStackTrace();
+			
 			return new Tipo("error", e.getMessage()); 
 		} 
 	}
@@ -1229,12 +1243,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 	
 	@Override public Tipo visitInsert(@NotNull DDLGrammarParser.InsertContext ctx) {
 		tableID=false;
+		if(verbose)print("Comprobando que se haya elegido una BD");
 		if(currentDataBase==null){
 			return new Tipo("error", "ERROR.-Se debe seleccionar una base de datos.");	
 		}
 
 		String tabla = ctx.ID(0).getText();
 		
+		if(verbose)print("Comprobando que exista la tabla");
 		//Verfica que exista la tabla en la base de datos actual.
 		JSONObject currentTable= getTable(tabla);
 		if(currentTable==null){
@@ -1258,6 +1274,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				return new Tipo("error", "ERROR.-No coincide el numero de valores del INSERT con las columnas de la tabla " + tabla);
 			}
 			int limite = ctx.literal().size();
+			if(verbose)print("Comprobando tipos.");
 			for(int i=0; i<limite; i++){
 				//Se obtiene el valor a insertar
 				String value = ctx.literal(i).getText();
@@ -1267,6 +1284,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				
 				try {
 					//Se intenta castear ambos valores.
+					
 					value = castTypes(t2, t1, value);
 					nueva.put(((JSONObject)columns.get(i)).get("name"), value);
 				} catch (Exception e) {
@@ -1283,7 +1301,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			for(int i=0; i<lim1; i++){
 				nueva.put(((JSONObject)columns.get(i)).get("name"), null);
 			}
-
+			if(verbose)print("Comprobando tipos.");
 			for(int i=0; i<idSize; i++){
 				String idCol = ctx.ID(i+1).getText();
 				String value = ctx.literal(i).getText();
@@ -1293,23 +1311,22 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 					return new Tipo("error", "ERROR.-No existe la columna " + idCol + " en la tabla " + tabla);
 				}
 				
-				String t1 = column.get("type").toString();
-				Tipo t2 = visit(ctx.literal(i));
-				if(t2.isError())return t2;
+				Tipo t1 = visit(ctx.literal(i));
+				JSONObject t2 = column;
 				
-				
-				if(!t1.equals(t2.getTipo())){
-					return new Tipo("error", "ERROR.-No coincide el tipo de la columna " + idCol + " con el tipo ingresado.");
-				}else if (t1.equals("CHAR")){
-					int length = Integer.parseInt(column.get("length").toString());
-					if(length<t2.getLength()){
-						return new Tipo("error", "ERROR.-La longitud del CHAR, supera lo soportado por la columna: " + idCol + "(" + length +")");
-					}
+				try {
+					//Se intenta castear ambos valores.
+					value = castTypes(t2, t1, value);
+					nueva.put(((JSONObject)columns.get(i)).get("name"), value);
+				} catch (Exception e) {
+					e.printStackTrace();
+					return new Tipo("error", e.getMessage());
 				}
 				nueva.put(idCol, value);
 			}
 
 		}
+		
 		
 		//Intenta insertar. Se verifican las restricciones.
 		try {
@@ -2527,10 +2544,14 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 			JSONObject constr = (JSONObject) restricciones.get(i);
 			if(constr.get("owner").toString().equals(tabla)){
 				if(constr.containsKey("primaryKey")){
+					if(verbose)print("Validando PRIMARY KEYS.");
+				
 					JSONArray pk = (JSONArray) constr.get("primaryKey");
 					if(!checkPrimaryKey(pk, nueva, relacion))
 						throw new Exception("ERROR.-Se esta violando la llave primaria: " + constr.get("name"));
 				}else if(constr.containsKey("foreignKey")){
+					if(verbose)print("Validando FOREIGN KEYS.");
+					
 					JSONObject fkObj = (JSONObject)constr.get("foreignKey");
 					JSONArray fkLocal = (JSONArray)fkObj.get("columns");
 					JSONArray fkRef = (JSONArray)fkObj.get("references");
@@ -2547,6 +2568,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 						throw new Exception("ERROR.-Se esta violando la llave foranea: " + constr.get("name"));
 					
 				}else{
+					if(verbose)print("Validando CHECK");
 					JSONArray expression = (JSONArray) constr.get("check");
 					ArrayList<String> expr = new ArrayList<String>();
 					for(int k=0; k<expression.size(); k++){
@@ -2558,6 +2580,7 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 				}
 			}
 		}
+		if(verbose)print("Insertando...");
 		((JSONArray)relacion.get("entries")).add(nueva);
 	}
 	//table1 contiene todas las entradas
@@ -2581,8 +2604,10 @@ public class EvalVisitor extends DDLGrammarBaseVisitor<Tipo>{
 		return ((System.nanoTime()-starttime)/1000000)+"ms";
 	}
 	
-	//Validar que exista el campo en la relacion
-	
+	//Imprimir en consola
+	public void print(String message){
+		consola.setText(consola.getText() + message+ "\n");
+	}
 	
 }
 

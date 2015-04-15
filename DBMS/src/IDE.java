@@ -40,6 +40,7 @@ import javax.swing.SwingConstants;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import javax.swing.JTable;
+import javax.swing.JCheckBox;
 
 
 public class IDE extends JFrame {
@@ -127,6 +128,9 @@ public class IDE extends JFrame {
 		
 		btnAbrir.setIcon(new ImageIcon(IDE.class.getResource("/com/sun/java/swing/plaf/windows/icons/NewFolder.gif")));
 		menuBar.add(btnAbrir);
+		
+		JCheckBox chkVerbose = new JCheckBox("Verbose");
+		menuBar.add(chkVerbose);
 		
 		JPanel panel = new JPanel();
 		panel.setPreferredSize(new Dimension(150, 10));
